@@ -197,9 +197,9 @@ ProxiCraft uses `Priority.Low` Harmony patches, meaning it runs *after* other mo
 - **CraftFromChests / PullFromContainers / CraftFromContainersPlus** - Same functionality, patches same methods
 - **AutoCraft** - Modifies crafting methods
 
-### Medium Risk (Usually Fine)
-These mods patch some of the same classes but typically work alongside ProxiCraft:
-- **SMXui / SMXhud / SMXmenu** - UI overhauls (tested compatible in most cases)
+### Medium Risk (May Work)
+These mods patch some of the same classes. Conflicts are possible but not guaranteed:
+- **SMXui / SMXhud / SMXmenu** - UI overhauls that may change window structures
 - **BiggerBackpack** - Changes inventory methods
 - **ExpandedStorage** - Changes TileEntity behavior
 
