@@ -11,6 +11,8 @@
     <!-- Disable nullable warnings for now - we handle null safety manually -->
     <Nullable>disable</Nullable>
     <NoWarn>$(NoWarn);CS8600;CS8602;CS8604;CS8618</NoWarn>
+    <!-- No debug symbols in release - users don't need .pdb files -->
+    <DebugType>none</DebugType>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -58,12 +60,14 @@
     </Reference>
   </ItemGroup>
 
-  <!-- Create release zip after build -->
+  <!-- Create release zip after build (includes ProxiCraft folder in zip) -->
   <Target Name="CreateReleaseZip" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <Delete Files="$(ProjectDir)Release\ProxiCraft.zip" Condition="Exists('$(ProjectDir)Release\ProxiCraft.zip')" />
-    <ZipDirectory SourceDirectory="$(ProjectDir)Release\ProxiCraft"
-                  DestinationFile="$(ProjectDir)Release\ProxiCraft.zip"
+    <!-- ZipDirectory zips contents, so we zip the Release folder to include ProxiCraft/ in the archive -->
+    <ZipDirectory SourceDirectory="$(ProjectDir)Release"
+                  DestinationFile="$(ProjectDir)ProxiCraft.zip"
                   Overwrite="true" />
-    <Message Importance="High" Text="Created Release\ProxiCraft.zip" />
+    <Move SourceFiles="$(ProjectDir)ProxiCraft.zip" DestinationFiles="$(ProjectDir)Release\ProxiCraft.zip" />
+    <Message Importance="High" Text="Created Release\ProxiCraft.zip (contains ProxiCraft/ folder)" />
   </Target>
 </Project>
