@@ -13,6 +13,13 @@ public class ModConfig
     public bool isDebug = false;
 
     /// <summary>
+    /// Show verbose startup health check output even when everything is OK.
+    /// When false (default), health check is silent unless there are issues.
+    /// Set to true to always see full health check output for diagnostics.
+    /// </summary>
+    public bool verboseHealthCheck = false;
+
+    /// <summary>
     /// Maximum range in blocks/meters to search for containers.
     /// Default is 15 blocks (same floor/area).
     /// Set to -1 or 0 for unlimited range (searches all loaded chunks - not recommended).

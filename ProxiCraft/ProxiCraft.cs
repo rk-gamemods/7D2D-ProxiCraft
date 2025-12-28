@@ -91,7 +91,10 @@ public class ProxiCraft : IModApi
             int patchCount = SafePatcher.ApplyPatches(harmony, Assembly.GetExecutingAssembly());
             
             Debug.Log($"[ProxiCraft] {MOD_NAME} v{MOD_VERSION} initialized with {patchCount} patches");
-            
+
+            // Run startup health check to validate all features
+            StartupHealthCheck.RunHealthCheck(Config);
+
             // Report any compatibility issues
             if (ModCompatibility.HasCriticalConflicts())
             {
@@ -1013,12 +1016,16 @@ public class ProxiCraft : IModApi
                 var replacementMethod = AccessTools.Method(typeof(ProxiCraft), nameof(DecItemForRefuel));
 
                 // Try to find and replace Bag.DecItem call
+                // Fallback patterns for if the method gets renamed
                 return RobustTranspiler.TryReplaceMethodCall(
                     codes,
                     typeof(Bag),
                     nameof(Bag.DecItem),
                     replacementMethod,
-                    FEATURE_ID);
+                    FEATURE_ID,
+                    targetParamTypes: null,
+                    occurrence: 1,
+                    fallbackNamePatterns: new[] { "Dec", "Remove", "Subtract", "Consume" });
             });
         }
     }
@@ -1786,12 +1793,16 @@ public class ProxiCraft : IModApi
                 var replacementMethod = AccessTools.Method(typeof(ProxiCraft), nameof(DecItemForGeneratorRefuel));
 
                 // Try to find and replace Bag.DecItem call
+                // Fallback patterns for if the method gets renamed
                 return RobustTranspiler.TryReplaceMethodCall(
                     codes,
                     typeof(Bag),
                     nameof(Bag.DecItem),
                     replacementMethod,
-                    FEATURE_ID);
+                    FEATURE_ID,
+                    targetParamTypes: null,
+                    occurrence: 1,
+                    fallbackNamePatterns: new[] { "Dec", "Remove", "Subtract", "Consume" });
             });
         }
     }

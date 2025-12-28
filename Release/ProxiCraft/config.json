@@ -1,22 +1,31 @@
 {
+  "_comment": "ProxiCraft Configuration - See README for full documentation",
+
   "modEnabled": true,
   "isDebug": false,
+  "verboseHealthCheck": false,
+
+  "_rangeNote": "Range in blocks. 15=same floor, 30=building, -1=unlimited (may cause lag). Range does NOT affect Trader - trader purchases work anywhere.",
   "range": 15,
 
+  "_storageSourcesNote": "STABLE - What containers to search for items. These only affect WHERE items come from, not HOW they're used.",
   "pullFromVehicles": true,
   "pullFromDrones": true,
   "pullFromDewCollectors": true,
   "pullFromWorkstationOutputs": true,
   "allowLockedContainers": true,
 
+  "_stableFeaturesNote": "STABLE - Core features using simple postfix patches. Very unlikely to break on game updates.",
   "enableForCrafting": true,
+  "enableForQuests": true,
+  "enableForRepairAndUpgrade": true,
+  "enableForLockpicking": true,
+  "enableForItemRepair": true,
+  "enableForPainting": true,
+
+  "_transpilerFeaturesNote": "LESS STABLE - Features using transpiler patches. May need updates when game code changes. The mod will auto-detect and warn if these break.",
   "enableForReload": true,
   "enableForRefuel": true,
   "enableForTrader": true,
-  "enableForRepairAndUpgrade": true,
-  "enableForQuests": true,
-  "enableForPainting": true,
-  "enableForLockpicking": true,
-  "enableForGeneratorRefuel": true,
-  "enableForItemRepair": true
+  "enableForGeneratorRefuel": true
 }

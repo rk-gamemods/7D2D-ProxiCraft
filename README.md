@@ -6,42 +6,229 @@ A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs usin
 
 ## Features
 
-- ✅ **Challenge Tracker Integration** - Container items count toward challenges like "Gather 4 Wood"
-- ✅ **Balanced Default Range** - 15-block radius by default (configurable, -1 for unlimited)
-- ✅ **Real-time Updates** - Challenge counts update immediately when moving items
-- ✅ **Conflict-Aware** - Uses low-priority patches to minimize issues with other mods
-- ✅ **Robust Error Handling** - SafePatcher system prevents crashes
+### Core Features (Stable)
+- ✅ **Craft from Containers** - Use materials from nearby chests for crafting
+- ✅ **Block Repair/Upgrade** - Use materials from containers for repairs
+- ✅ **Challenge Tracker Integration** - Container items count toward challenges
+- ✅ **Lockpicking** - Use lockpicks from containers to pick locks
+- ✅ **Item Repair** - Use repair kits from containers to repair weapons/tools
+- ✅ **Painting** - Use paint from containers when using paint brush
 
-## Inspiration & Prior Art
+### Extended Features (Transpiler-based)
+- ✅ **Weapon Reload** - Reload weapons using ammo from containers
+- ✅ **Vehicle Refuel** - Refuel vehicles using gas cans from containers
+- ✅ **Generator Refuel** - Refuel generators from containers
+- ✅ **Trader Purchases** - Pay with dukes stored in containers
 
-ProxiCraft was inspired by the "Craft From Containers" concept implemented by various modders:
+### Storage Sources
+- ✅ **Standard Containers** - Chests, boxes, storage crates
+- ✅ **Vehicle Storage** - Minibike, motorcycle, 4x4, gyrocopter bags
+- ✅ **Drone Storage** - Player's drone cargo
+- ✅ **Dew Collectors** - Water from dew collectors
+- ✅ **Workstation Outputs** - Items in forge/campfire/chemistry output slots
 
-| Mod | Author | Notes |
-|-----|--------|-------|
-| [CraftFromContainers](https://www.nexusmods.com/7daystodie/mods/2196) | aedenthorn | Long-term maintainer |
-| [CraftFromContainers v1.0](https://www.nexusmods.com/7daystodie/mods/4970) | SYN0N1M | Game v1.0 update |
-| CraftFromContainersPlus | llmonmonll | Popular fork |
+### Reliability Features
+- ✅ **Startup Health Check** - Validates all features on load
+- ✅ **Silent by Default** - No output unless there are issues
+- ✅ **Auto-Adaptation** - Attempts to recover from game updates
+- ✅ **Conflict Detection** - Warns about mod conflicts
+- ✅ **Graceful Degradation** - Features disable individually if broken
 
-We studied these open-source projects for ideas and approaches, then made our own 
-implementation with different design choices.
+## Stability Philosophy
 
-### What's Different in ProxiCraft
+ProxiCraft is designed to survive game updates through multiple layers of protection:
 
-| Feature | ProxiCraft | Original CFC |
-|---------|------------|--------------|
-| **Default Range** | 15 blocks (balanced) | Unlimited |
-| **Challenge Tracker** | ✅ Integrated | ❌ Not available |
-| **SafePatcher System** | ✅ Graceful failures | ❌ Basic patching |
-| **Conflict Detection** | ✅ Automatic warnings | ❌ Manual |
+### 1. Patch Stability Tiers
 
-**Note:** You can only use ONE craft-from-containers mod at a time. ProxiCraft will 
-warn you if it detects conflicting mods.
+| Tier | Features | Risk Level |
+|------|----------|------------|
+| **Stable** | Crafting, Quests, Block Repair, Lockpicking, Item Repair, Painting | Low - Uses simple postfix patches |
+| **Less Stable** | Reload, Vehicle Refuel, Generator Refuel, Trader | Medium - Uses transpiler patches that modify IL code |
+| **Storage Sources** | Vehicles, Drones, Dew Collectors, Workstations | Low - Only reads game data, doesn't patch |
+
+### 2. Startup Health Check
+
+On every game start, ProxiCraft validates all 24 patches:
+- **Silent when OK** - No console spam if everything works
+- **Warns on issues** - Clear messages if features break
+- **Detailed diagnostics** - Use `pc fullcheck` for bug reports
+
+### 3. Adaptive Recovery
+
+When game updates change method names or signatures:
+1. **Primary lookup** - Try exact method match
+2. **Signature matching** - Match by parameter types
+3. **Name pattern search** - Look for renamed methods
+4. **Graceful failure** - Disable feature, not crash game
 
 ## Installation
 
 1. Download the zip using the link above
 2. Extract to `7 Days To Die/Mods/ProxiCraft/`
 3. Ensure EAC is disabled (required for all DLL mods)
+
+## Console Commands
+
+Open the console with F1 and use:
+
+| Command | Description |
+|---------|-------------|
+| `pc status` | Show mod status and configuration |
+| `pc health` | Show startup health check results |
+| `pc recheck` | Re-run health check |
+| `pc fullcheck` | Full diagnostic report (for bug reports) |
+| `pc diag` | Show mod compatibility report |
+| `pc test` | Test container scanning (shows nearby items) |
+| `pc conflicts` | Show detected mod conflicts |
+| `pc toggle` | Enable/disable mod temporarily |
+| `pc debug` | Toggle debug logging |
+
+### Troubleshooting Workflow
+
+1. **Check status**: `pc status` - Is the mod enabled?
+2. **Check health**: `pc health` - Are all features working?
+3. **Test scanning**: `pc test` - Can mod see your containers?
+4. **Full report**: `pc fullcheck` - Copy this for bug reports
+
+## Configuration
+
+Edit `config.json` in the mod folder. The file is organized into sections:
+
+```json
+{
+  "modEnabled": true,
+  "isDebug": false,
+  "verboseHealthCheck": false,
+  "range": 15,
+
+  // Storage Sources (STABLE)
+  "pullFromVehicles": true,
+  "pullFromDrones": true,
+  "pullFromDewCollectors": true,
+  "pullFromWorkstationOutputs": true,
+  "allowLockedContainers": true,
+
+  // Core Features (STABLE - simple patches)
+  "enableForCrafting": true,
+  "enableForQuests": true,
+  "enableForRepairAndUpgrade": true,
+  "enableForLockpicking": true,
+  "enableForItemRepair": true,
+  "enableForPainting": true,
+
+  // Extended Features (LESS STABLE - transpiler patches)
+  "enableForReload": true,
+  "enableForRefuel": true,
+  "enableForTrader": true,
+  "enableForGeneratorRefuel": true
+}
+```
+
+### Configuration Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `modEnabled` | true | Master toggle for entire mod |
+| `isDebug` | false | Enable verbose logging (performance impact) |
+| `verboseHealthCheck` | false | Always show full health check output |
+| `range` | 15 | Search radius in blocks (-1 for unlimited) |
+
+### Range Guide
+
+Range is the **radius** from player position:
+
+| Range | Coverage | Notes |
+|-------|----------|-------|
+| 5 | Same room only | Minimal performance impact |
+| 15 | Same floor/area | **Default** - good balance |
+| 30 | Entire building | Slight performance impact |
+| -1 | All loaded chunks | May cause lag with many containers |
+
+**Important:** Range does NOT affect Trader purchases - those work regardless of distance when talking to a trader.
+
+### Feature Notes
+
+| Feature | Range Affected? | Notes |
+|---------|-----------------|-------|
+| Crafting | Yes | Only containers within range |
+| Block Repair | Yes | Only containers within range |
+| Trader | **No** | Works anywhere when at trader |
+| Vehicle Refuel | Yes | Containers near the vehicle |
+| Generator Refuel | Yes | Containers near the generator UI |
+| Lockpicking | Yes | Containers within range |
+
+## Project Structure
+
+```
+ProxiCraft/
+├── ProxiCraft/                    # Source code
+│   ├── ProxiCraft.cs              # Main mod with Harmony patches
+│   ├── ContainerManager.cs        # Container scanning and item management
+│   ├── ModConfig.cs               # Configuration settings
+│   ├── SafePatcher.cs             # Safe patching utilities
+│   ├── AdaptivePatching.cs        # Mod compatibility helpers
+│   ├── AdaptiveMethodFinder.cs    # Game update recovery
+│   ├── RobustTranspiler.cs        # Safe transpiler utilities
+│   ├── StartupHealthCheck.cs      # Feature validation system
+│   ├── ModCompatibility.cs        # Conflict detection
+│   ├── ConsoleCmdProxiCraft.cs    # Console commands (pc)
+│   └── NetPackagePCLock.cs        # Multiplayer lock sync
+├── Release/ProxiCraft/            # Ready-to-deploy mod package
+│   ├── ProxiCraft.dll             # Compiled mod
+│   ├── ModInfo.xml                # Mod metadata
+│   └── config.json                # User configuration
+├── tools/                         # Development utilities
+├── RESEARCH_NOTES.md              # Development history
+├── INVENTORY_EVENTS_GUIDE.md      # Technical reference
+└── LICENSE                        # MIT License
+```
+
+## Technical Details
+
+### Patching Methodology
+
+ProxiCraft uses three types of Harmony patches:
+
+1. **Postfix Patches** (Most Stable)
+   - Run after original method
+   - Can modify return values
+   - Used for: Item counting, crafting validation
+
+2. **Prefix Patches** (Stable)
+   - Run before original method
+   - Can skip original if needed
+   - Used for: Painting, lockpicking
+
+3. **Transpiler Patches** (Less Stable)
+   - Modify IL bytecode directly
+   - Most powerful but most fragile
+   - Used for: Reload, refuel, trader
+
+### Health Check System
+
+The startup health check validates:
+- **Method existence** - Target methods still exist
+- **Patch application** - Harmony hooks are active
+- **Transpiler success** - IL modifications applied correctly
+- **Type availability** - Required game classes exist
+
+Results are cached and available via `pc health` command.
+
+### Adaptive Recovery
+
+When a game update changes code:
+
+```
+1. Try exact method match
+   ↓ (fail)
+2. Try signature-based matching
+   ↓ (fail)
+3. Try name pattern search (e.g., "GetAmmo" → "GetAmmoCount")
+   ↓ (fail)
+4. Mark feature as FAILED, continue with other features
+```
+
+This prevents the mod from crashing due to minor game updates.
 
 ## Multiplayer Status
 
@@ -52,119 +239,70 @@ warn you if it detects conflicting mods.
 - May have issues with **shared storage** that multiple players access
 - Race conditions possible if players craft simultaneously from the same container
 
-**Technical limitation:** All container locking is client-side. There is no server-side validation to prevent concurrent access, so item duplication or loss could occur with shared containers.
+## Troubleshooting
 
-## Project Structure
+### Mod doesn't work at all
+1. Run `pc status` - Check if mod is enabled
+2. Run `pc health` - Check for failed features
+3. Ensure EAC is disabled
+4. Check game log for `[ProxiCraft]` errors
 
-```
-ProxiCraft/
-├── ProxiCraft/           # Source code
-│   ├── ProxiCraft.cs     # Main mod with Harmony patches
-│   ├── ContainerManager.cs        # Container scanning and item management
-│   ├── ModConfig.cs               # Configuration settings
-│   ├── SafePatcher.cs             # Safe patching utilities
-│   ├── AdaptivePatching.cs        # Compatibility helpers
-│   ├── ModCompatibility.cs        # Conflict detection
-│   ├── ConsoleCmdProxiCraft.cs    # Console commands (pc)
-│   └── NetPackagePCLock.cs        # Multiplayer lock sync
-├── Release/ProxiCraft/   # Ready-to-deploy mod package
-│   ├── ProxiCraft.dll    # Compiled mod
-│   ├── ModInfo.xml                # Mod metadata
-│   └── config.json                # User configuration
-├── tools/                         # Development utilities
-│   ├── DecompileGameCode.ps1      # Game code decompiler script
-│   └── README.md                  # Tool documentation
-├── RESEARCH_NOTES.md              # Development history and debugging notes
-├── INVENTORY_EVENTS_GUIDE.md      # Technical reference for modders
-└── LICENSE                        # MIT License
-```
+### Specific feature not working
+1. Run `pc fullcheck` for detailed diagnostics
+2. Check if feature is enabled in config.json
+3. Check if health check shows FAIL for that feature
+4. If FAIL: Feature may need mod update for this game version
 
-## Features
+### Performance issues
+1. Reduce `range` (default 15 is recommended)
+2. Set `isDebug` to `false`
+3. Disable features you don't use
 
-### Code Organization
-- Separated container scanning/management into dedicated `ContainerManager` class
-- Mod compatibility checking in `ModCompatibility` class
-- Safe patching utilities in `SafePatcher` class
-- Clear separation of concerns between patches and business logic
-- Added comprehensive XML documentation
+### After game update
+1. Run `pc health` - Check which features broke
+2. Features showing [ADAPT] are auto-recovered
+3. Features showing [FAIL] need mod update
+4. Report issues with `pc fullcheck` output
 
-### Error Handling
-- All patches wrapped in try-catch blocks
-- Graceful degradation - mod disables feature if it causes errors
-- Detailed logging with configurable debug mode
-- Safe patching that records success/failure for each patch
+## Potential Mod Conflicts
 
-### Null Safety
-- Extensive null checks throughout
-- Safe pattern matching for type checks
-- Defensive coding against game state changes
+### High Risk (Will Conflict)
+- **CraftFromChests / CraftFromContainersPlus** - Same functionality
+- **AutoCraft** - Modifies crafting methods
+- Other "craft from containers" mods
 
-### Mod Compatibility
-- **HarmonyPriority(Priority.Low)** on all patches - other mods run first
-- Automatic detection of known conflicting mods
-- Detection of Harmony patch conflicts with other mods
-- Postfix patches preferred over Transpilers where possible
-- Non-destructive - never breaks original game functionality
+### Medium Risk (May Work)
+- **SMXui / SMXhud** - UI overhauls
+- **BiggerBackpack** - Changes inventory
+- **ExpandedStorage** - Changes containers
 
-### Performance
-- Caching of container scans (100ms cooldown)
-- Position-based cache invalidation (only rescan when player moves)
-- Lazy initialization of storage lists
+### Low Risk
+- **BetterVehicles** - May affect refuel
+- Most mods not touching crafting/inventory
 
-### Troubleshooting Tools
-- In-game console command `pc` for diagnostics
-- Detailed diagnostic reports
-- Container scan testing
-- Real-time conflict detection
+### Tested Compatible
+- **JaWoodleUI** - UI overhaul
+- **TechFreqsIncreasedBackpack** - Larger backpack
 
-## Console Commands
+## Inspiration & Prior Art
 
-Open the console with F1 and use:
+ProxiCraft builds on concepts from:
 
-| Command | Description |
-|---------|-------------|
-| `pc status` | Show mod status and configuration |
-| `pc diag` | Full diagnostic report with patch status |
-| `pc test` | Test container scanning (shows nearby items) |
-| `pc conflicts` | Show detected mod conflicts |
-| `pc toggle` | Enable/disable mod temporarily |
-| `pc debug` | Toggle debug logging |
-| `pc refresh` | Refresh container cache |
+| Mod | Author | Notes |
+|-----|--------|-------|
+| [CraftFromContainers](https://www.nexusmods.com/7daystodie/mods/2196) | aedenthorn | Original concept |
+| [CraftFromContainers v1.0](https://www.nexusmods.com/7daystodie/mods/4970) | SYN0N1M | Game v1.0 port |
+| BeyondStorage2 | superguru | Feature ideas |
 
-## Configuration
+### What's Different in ProxiCraft
 
-Create/edit `config.json` in the mod folder:
-
-```json
-{
-  "modEnabled": true,
-  "isDebug": false,
-  "enableForRepairAndUpgrade": true,
-  "enableForTrader": true,
-  "enableForRefuel": true,
-  "enableForReload": true,
-  "enableFromVehicles": true,
-  "allowLockedContainers": true,
-  "range": 15
-}
-```
-
-- `modEnabled` - Master toggle
-- `isDebug` - Enable verbose logging (disable for performance)
-- `range` - Max distance in **blocks** to scan for containers (default: 15, use -1 for unlimited)
-
-### Range Guide
-
-Range is the **radius** from player position (diameter = range × 2):
-
-| Range | Diameter | Coverage |
-|-------|----------|----------|
-| 5 | 10 blocks | Same room only |
-| 10 | 20 blocks | Adjacent rooms |
-| 15 | 30 blocks | Same floor/area (default) |
-| 30 | 60 blocks | Entire small building |
-| 50 | 100 blocks | Large POI floor |
-| -1 | Unlimited | All loaded chunks (can cause lag) |
+| Feature | ProxiCraft | Others |
+|---------|------------|--------|
+| Startup Health Check | ✅ Validates all features | ❌ |
+| Adaptive Recovery | ✅ Survives game updates | ❌ |
+| Silent by Default | ✅ No spam | ❌ |
+| Challenge Tracker | ✅ Full integration | ❌ |
+| Stability Tiers | ✅ Documented risk levels | ❌ |
 
 ## Building
 
@@ -172,75 +310,12 @@ Range is the **radius** from player position (diameter = range × 2):
 dotnet build -c Release
 ```
 
-This will output:
-- `Release/ProxiCraft/` - The mod folder (DLL, ModInfo.xml, config.json)
-- `Release/ProxiCraft.zip` - Ready-to-distribute release package
-
-## Troubleshooting
-
-### Crafting doesn't use container items
-1. Run `pc status` to check if mod is enabled
-2. Run `pc test` to verify container scanning works
-3. Run `pc conflicts` to check for mod conflicts
-4. Check `config.json` that `modEnabled` is true
-
-### Game crashes or errors
-1. Enable debug logging: `pc debug`
-2. Check game log for `[ProxiCraft]` messages
-3. Run `pc diag` for full diagnostic report
-4. Try disabling other mods to isolate the issue
-
-### Challenge tracker not updating
-- This is the Fix #8e feature. It patches `DragAndDropItemChanged` to safely trigger challenge refresh
-- Run `pc diag` to verify the challenge patch is active
-- See [RESEARCH_NOTES.md](RESEARCH_NOTES.md) for technical details
-
-### Performance issues
-1. Set `isDebug` to `false` in config.json
-2. Reduce `range` if using unlimited (-1)
-3. Check for other mods that scan containers
-
-## Potential Mod Conflicts
-
-ProxiCraft uses `Priority.Low` Harmony patches, meaning it runs *after* other mods to avoid breaking them. However, conflicts can still occur if another mod changes method signatures or return values that ProxiCraft depends on.
-
-### High Risk (Will Conflict)
-- **CraftFromChests / PullFromContainers / CraftFromContainersPlus** - Same functionality, patches same methods
-- **AutoCraft** - Modifies crafting methods
-
-### Medium Risk (May Work)
-These mods patch some of the same classes. Conflicts are possible but not guaranteed:
-- **SMXui / SMXhud / SMXmenu** - UI overhauls that may change window structures
-- **BiggerBackpack** - Changes inventory methods
-- **ExpandedStorage** - Changes TileEntity behavior
-
-### Low Risk
-- **BetterVehicles** - May change vehicle fuel systems
-- Most mods that don't modify crafting or inventory
-
-### Tested Compatible
-These mods have been confirmed to work alongside ProxiCraft:
-- **JaWoodleUI** - UI overhaul (v21.0)
-- **TechFreqsIncreasedBackpack** - Increases backpack to 144 slots
-
-## Known Compatibility
-
-This mod uses Harmony to patch:
-- `XUiM_PlayerInventory` - Item counting and removal
-- `XUiC_RecipeList` / `XUiC_RecipeCraftCount` - Recipe UI
-- `XUiC_IngredientEntry` - Ingredient display
-- `ItemActionEntryCraft` - Craft button
-- `ItemActionEntryPurchase` - Trader purchase
-- `AnimatorRangedReloadState` - Weapon reload
-- `EntityVehicle` - Vehicle refueling
-- `GameManager` - Container lock/unlock events
-- `ItemStack.DragAndDropItemChanged` - Challenge tracker updates (v2.0+)
-
-Mods that heavily modify these classes may conflict. The `Priority.Low` attribute
-helps ensure this mod's patches run after others.
+Outputs:
+- `Release/ProxiCraft/` - The mod folder
+- `Release/ProxiCraft.zip` - Distribution package
 
 ## License
 
 MIT License - See [LICENSE](LICENSE) for details.
 
-This mod is released under MIT license to allow community continuation when game updates break functionality.
+Released under MIT to allow community maintenance when game updates break functionality.

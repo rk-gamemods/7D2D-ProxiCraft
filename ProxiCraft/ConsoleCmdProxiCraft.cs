@@ -9,6 +9,7 @@ namespace ProxiCraft;
 /// 
 /// Subcommands:
 ///   status   - Show mod status and configuration
+///   health   - Show startup health check results
 ///   diag     - Full diagnostic report
 ///   test     - Test container scanning
 ///   reload   - Reload configuration
@@ -33,7 +34,10 @@ public class ConsoleCmdProxiCraft : ConsoleCmdAbstract
 
 Commands:
   status     - Show current mod status and configuration
-  diag       - Generate full diagnostic report
+  health     - Show startup health check results
+  recheck    - Re-run startup health check
+  fullcheck  - Full diagnostic report (for bug reports)
+  diag       - Show mod compatibility report
   test       - Test container scanning (shows nearby containers)
   reload     - Reload configuration from config.json
   toggle     - Toggle mod on/off
@@ -42,7 +46,8 @@ Commands:
 
 Examples:
   pc status
-  pc diag
+  pc health
+  pc fullcheck
   pc test
 ";
     }
@@ -58,7 +63,20 @@ Examples:
                 case "status":
                     ShowStatus();
                     break;
-                    
+
+                case "health":
+                    ShowHealthCheck();
+                    break;
+
+                case "recheck":
+                    RunRecheck();
+                    break;
+
+                case "fullcheck":
+                case "full":
+                    RunFullCheck();
+                    break;
+
                 case "diag":
                 case "diagnostic":
                 case "diagnostics":
@@ -120,6 +138,7 @@ Examples:
         Output($"  Mod Version: {ProxiCraft.MOD_VERSION}");
         Output($"  Enabled: {(config?.modEnabled == true ? "YES" : "NO")}");
         Output($"  Debug Mode: {(config?.isDebug == true ? "ON" : "OFF")}");
+        Output($"  Verbose Health Check: {(config?.verboseHealthCheck == true ? "ON" : "OFF")}");
         Output("");
         Output("  Features:");
         Output($"    Crafting: {GetFeatureStatus(config?.modEnabled)}");
@@ -280,5 +299,42 @@ Examples:
 
         ProxiCraft.Config.isDebug = !ProxiCraft.Config.isDebug;
         Output($"Debug logging is now {(ProxiCraft.Config.isDebug ? "ON" : "OFF")}");
+    }
+
+    private void ShowHealthCheck()
+    {
+        if (!StartupHealthCheck.HasRun)
+        {
+            Output("Health check has not been run yet.");
+            Output("Use 'pc recheck' to run it now.");
+            return;
+        }
+
+        Output(StartupHealthCheck.GetHealthReport());
+    }
+
+    private void RunRecheck()
+    {
+        Output("Re-running startup health check...");
+        Output("");
+
+        StartupHealthCheck.Recheck();
+
+        Output("");
+        Output("Health check complete. Use 'pc health' to view results.");
+    }
+
+    private void RunFullCheck()
+    {
+        Output("Running full diagnostic check...");
+        Output("");
+
+        string report = StartupHealthCheck.GetFullDiagnosticReport();
+
+        // Split and output each line
+        foreach (var line in report.Split('\n'))
+        {
+            Output(line);
+        }
     }
 }

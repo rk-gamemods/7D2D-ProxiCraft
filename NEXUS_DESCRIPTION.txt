@@ -25,9 +25,9 @@ You no longer need to move items to your backpack first. If the item is in a con
 
 [line]
 
-[size=4][b]How Is This Different From CraftFromContainers?[/b][/size]
+[size=4][b]How Is This Different From Craft From Containers?[/b][/size]
 
-ProxiCraft was inspired by [url="https://www.nexusmods.com/7daystodie/mods/2196"]CraftFromContainers by aedenthorn[/url]. If you want the original, check out their mod.
+ProxiCraft was inspired by [url=https://www.nexusmods.com/7daystodie/mods/2196]Craft From Containers by aedenthorn[/url]. If you want the original, check out their mod.
 
 ProxiCraft is a complete rewrite with a different architecture:
 
@@ -184,11 +184,41 @@ Not tested in multiplayer. The mod may work, but shared containers could cause p
 
 [line]
 
+[size=4][b]Coming Soon[/b][/size]
+
+We're actively testing the following features for an upcoming release:
+
+[b]New Storage Sources[/b]
+[list]
+[*][b]Drone Storage[/b] - Pull items from your drone's cargo compartment
+[*][b]Dew Collector Contents[/b] - Use water directly from dew collectors for recipes
+[*][b]Workstation Outputs[/b] - Use items from forge, campfire, and workstation output slots
+[/list]
+
+[b]New Features[/b]
+[list]
+[*][b]Painting from Containers[/b] - Use paint cans from storage with the paint brush tool
+[*][b]Lockpicking from Containers[/b] - Use lockpicks stored in nearby containers
+[*][b]Generator Refuel[/b] - Refuel generators and power sources from nearby storage
+[*][b]Item Repair[/b] - Repair weapons and tools using repair kits from containers
+[/list]
+
+[b]Stability Improvements[/b]
+[list]
+[*][b]Startup Health Check[/b] - Validates all features when the game loads. Silent when everything works, warns you if features break.
+[*][b]Auto-Adaptation[/b] - Mod attempts to survive game updates by finding renamed methods automatically.
+[*][b]Better Diagnostics[/b] - New [b]pc health[/b] and [b]pc fullcheck[/b] commands for troubleshooting.
+[/list]
+
+These features are currently in testing.
+
+[line]
+
 [size=4][b]Source Code[/b][/size]
 
 This mod is open source under the MIT license. You are free to modify and redistribute it.
 
-[url="https://github.com/rk-gamemods/7D2D-ProxiCraft"]View on GitHub[/url]
+[url=https://github.com/rk-gamemods/7D2D-ProxiCraft]View on GitHub[/url]
 
 [line]
 
@@ -196,6 +226,6 @@ This mod is open source under the MIT license. You are free to modify and redist
 
 Found a bug? Have a suggestion? Discovered a mod conflict?
 
-[url="https://github.com/rk-gamemods/7D2D-ProxiCraft/issues"]Report an issue on GitHub[/url]
+[url=https://github.com/rk-gamemods/7D2D-ProxiCraft/issues]Report an issue on GitHub[/url]
 
 Or leave a comment on this mod page.

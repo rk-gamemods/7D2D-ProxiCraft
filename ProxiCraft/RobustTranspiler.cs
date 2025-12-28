@@ -167,6 +167,7 @@ public static class RobustTranspiler
     /// <summary>
     /// Safely replaces a method call with another method.
     /// Returns true if successful, false if the target wasn't found.
+    /// Uses adaptive fallback discovery when primary search fails.
     /// </summary>
     /// <param name="codes">The IL instructions</param>
     /// <param name="targetType">Type containing the method to replace</param>
@@ -175,6 +176,7 @@ public static class RobustTranspiler
     /// <param name="featureId">Feature ID for status tracking</param>
     /// <param name="targetParamTypes">Optional parameter types for overload resolution</param>
     /// <param name="occurrence">Which occurrence to replace (1 = first, -1 = all)</param>
+    /// <param name="fallbackNamePatterns">Alternative name patterns for adaptive search</param>
     /// <returns>True if replacement succeeded</returns>
     public static bool TryReplaceMethodCall(
         List<CodeInstruction> codes,
@@ -183,19 +185,77 @@ public static class RobustTranspiler
         MethodInfo replacementMethod,
         string featureId,
         Type[] targetParamTypes = null,
-        int occurrence = 1)
+        int occurrence = 1,
+        string[] fallbackNamePatterns = null)
     {
         try
         {
             var indices = FindAllMethodCalls(codes, targetType, targetMethodName, targetParamTypes);
 
-            if (indices.Count == 0)
+            // PRIMARY: Try exact match
+            if (indices.Count > 0)
             {
-                ProxiCraft.LogWarning($"[{featureId}] Could not find {targetType.Name}.{targetMethodName} in IL");
-                RecordTranspilerStatus(featureId, false);
-                return false;
+                return DoReplacement(codes, indices, replacementMethod, featureId, occurrence,
+                    "Exact", targetType, targetMethodName, targetParamTypes);
             }
 
+            // FALLBACK: Use adaptive method finder
+            ProxiCraft.LogWarning($"[{featureId}] Primary lookup failed for {targetType.Name}.{targetMethodName}");
+
+            var adaptiveResult = AdaptiveMethodFinder.FindMethodCallInIL(
+                codes, targetType, targetMethodName, targetParamTypes, fallbackNamePatterns);
+
+            if (adaptiveResult.Found)
+            {
+                // Found via fallback - search for this method in IL
+                var fallbackIndices = new List<int>();
+                for (int i = 0; i < codes.Count; i++)
+                {
+                    if ((codes[i].opcode == OpCodes.Call || codes[i].opcode == OpCodes.Callvirt) &&
+                        codes[i].operand is MethodInfo method &&
+                        method == adaptiveResult.Method)
+                    {
+                        fallbackIndices.Add(i);
+                    }
+                }
+
+                if (fallbackIndices.Count > 0)
+                {
+                    adaptiveResult.LogResult(featureId);
+                    return DoReplacement(codes, fallbackIndices, replacementMethod, featureId, occurrence,
+                        adaptiveResult.Strategy, targetType, targetMethodName, targetParamTypes);
+                }
+            }
+
+            // All fallbacks failed
+            adaptiveResult.LogResult(featureId);
+            RecordTranspilerStatus(featureId, false);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            ProxiCraft.LogError($"[{featureId}] Transpiler error: {ex.Message}");
+            RecordTranspilerStatus(featureId, false);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Performs the actual method replacement at the specified indices.
+    /// </summary>
+    private static bool DoReplacement(
+        List<CodeInstruction> codes,
+        List<int> indices,
+        MethodInfo replacementMethod,
+        string featureId,
+        int occurrence,
+        string strategy,
+        Type targetType,
+        string targetMethodName,
+        Type[] targetParamTypes)
+    {
+        try
+        {
             // Validate replacement method signature matches
             var targetMethod = AccessTools.Method(targetType, targetMethodName, targetParamTypes);
             if (targetMethod != null && !ValidateReplacementSignature(targetMethod, replacementMethod))
@@ -222,6 +282,10 @@ public static class RobustTranspiler
 
             if (replaced > 0)
             {
+                if (strategy != "Exact")
+                {
+                    ProxiCraft.LogWarning($"[{featureId}] Fallback recovery successful via {strategy}");
+                }
                 ProxiCraft.LogDebug($"[{featureId}] Successfully replaced {replaced} method call(s)");
                 RecordTranspilerStatus(featureId, true);
                 return true;
