@@ -1,5 +1,33 @@
 # ProxiCraft - Challenge Tracker Research Notes
 
+## Final Working Solution (Fix #8e) - December 2024
+
+**STATUS: ✅ ALL FEATURES WORKING**
+
+The challenge tracker integration is complete. All storage sources work correctly:
+- Standard containers (TileEntityComposite, TileEntitySecureLootContainer)
+- Vehicle storage (4x4, motorcycle, gyrocopter, minibike)
+- Drone cargo (EntityDrone.lootContainer)
+- Dew collectors (TileEntityCollector)
+- Workstation outputs (TileEntityWorkstation.Output)
+
+### Architecture Summary
+
+1. **Cache open source references** - When UI opens, cache the live reference
+2. **Fire DragAndDropItemChanged** - Challenges already listen to this event
+3. **SET the Current field** - Not just calculate, but SET it in HandleUpdatingCurrent
+4. **Count from OUTPUT only** - For workstations, only count finished products
+
+### Critical Lessons Learned
+
+1. **NEVER fire OnBackpackItemsChangedInternal during item transfers** - causes item duplication!
+2. **Use DragAndDropItemChanged instead** - safe, challenges already subscribe to it
+3. **Drone lootContainer.items == bag.GetSlots()** - they share the SAME array!
+4. **Workstation slots have different purposes** - only Output should be counted
+5. **TEFeatureStorage implements ITileEntity, not TileEntity class** - requires different cast
+
+---
+
 ## Problem Statement
 Challenge tracker shows incorrect item counts when items are moved between player inventory and storage containers.
 

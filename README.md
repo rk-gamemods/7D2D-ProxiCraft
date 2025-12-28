@@ -230,6 +230,39 @@ When a game update changes code:
 
 This prevents the mod from crashing due to minor game updates.
 
+## Design Decisions
+
+### Workstation Slots: Output Only
+
+When counting items in workstations (forge, campfire, workbench, chemistry station), ProxiCraft **only counts OUTPUT slots**. Input, fuel, and tool slots are intentionally ignored.
+
+**Why?**
+
+| Slot Type | Counted? | Reasoning |
+|-----------|----------|-----------|
+| **Output** | ✅ Yes | Finished products ready to use |
+| **Input** | ❌ No | Items actively being processed/consumed |
+| **Fuel** | ❌ No | Fuel is being burned, not available |
+| **Tool** | ❌ No | Tools are in use (anvil, beaker, etc.) |
+
+**Example:** You put 100 iron ore in the forge. You should NOT be able to craft iron bars from that ore - it's actively being smelted. But once the iron bars appear in the output slot, those ARE available for crafting.
+
+This prevents confusion where:
+- Iron in the smelting queue counts as "available" for crafting
+- Wood in the fuel slot counts as building material
+- The beaker in the chemistry station tool slot counts as an item
+
+### Vehicle/Drone Storage: Full Access
+
+Unlike workstations, vehicle and drone storage containers are fully counted. All slots are available because these are true storage containers - there's no "processing" happening.
+
+### Open Container Handling
+
+When you have a container/vehicle/workstation UI open, items are counted directly from that open source rather than from the world scan. This ensures:
+- Real-time updates as you move items
+- No double-counting
+- Accurate challenge tracker updates
+
 ## Multiplayer Status
 
 **Untested in multiplayer.** The mod includes lock synchronization code but has not been validated in multiplayer environments.

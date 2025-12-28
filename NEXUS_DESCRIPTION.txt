@@ -16,9 +16,21 @@ ProxiCraft lets you use items stored in nearby containers for:
 [list]
 [*]Crafting recipes
 [*]Reloading weapons
-[*]Refueling vehicles
+[*]Refueling vehicles and generators
 [*]Repairing and upgrading blocks
 [*]Buying from traders
+[*]Painting blocks
+[*]Lockpicking locked containers
+[*]Repairing weapons and tools
+[/list]
+
+[b]Storage Sources:[/b]
+[list]
+[*]Standard storage containers (chests, boxes, crates)
+[*]Vehicle storage (4x4, motorcycle, gyrocopter, minibike)
+[*]Drone cargo compartment
+[*]Dew collector contents
+[*]Workstation output slots (forge, workbench, campfire, chemistry station)
 [/list]
 
 You no longer need to move items to your backpack first. If the item is in a container within range, the game will use it automatically.
@@ -48,10 +60,17 @@ ProxiCraft is a complete rewrite with a different architecture:
 [b]More Features[/b]
 [list]
 [*][b]Challenge Tracker Integration[/b] - Container items count toward "Gather X" quests. This is not available in other versions.
+[*][b]Expanded Storage Sources[/b] - Pull from vehicles, drones, dew collectors, and workstation outputs
+[*][b]Painting Support[/b] - Use paint cans from storage with the paint brush tool
+[*][b]Lockpicking Support[/b] - Use lockpicks stored in nearby containers
+[*][b]Generator Refuel[/b] - Refuel generators and power sources from nearby storage
+[*][b]Item Repair[/b] - Repair weapons and tools using repair kits from containers
 [*][b]Balanced Default Range[/b] - 15 blocks by default instead of unlimited. Better for gameplay balance.
 [*][b]Per-Feature Control[/b] - Enable or disable crafting, reloading, refueling, and trading separately.
 [*][b]Console Diagnostics[/b] - Run [b]pc status[/b], [b]pc test[/b], [b]pc conflicts[/b] to troubleshoot issues.
 [*][b]Container Caching[/b] - Performance optimized. Limits scanning to 10 times per second max.
+[*][b]Startup Health Check[/b] - Validates all features when the game loads. Silent when everything works, warns you if features break.
+[*][b]Auto-Adaptation[/b] - Mod attempts to survive game updates by finding renamed methods automatically.
 [/list]
 
 [b]Important:[/b] Use only ONE craft-from-containers mod. Remove CraftFromContainers or similar mods before using ProxiCraft.
@@ -92,14 +111,26 @@ Edit [b]config.json[/b] in the mod folder to change settings:
 {
   "modEnabled": true,
   "isDebug": false,
+  "verboseHealthCheck": false,
   "range": 15,
+  
+  "pullFromVehicles": true,
+  "pullFromDrones": true,
+  "pullFromDewCollectors": true,
+  "pullFromWorkstationOutputs": true,
+  "allowLockedContainers": true,
+  
+  "enableForCrafting": true,
+  "enableForQuests": true,
+  "enableForRepairAndUpgrade": true,
+  "enableForLockpicking": true,
+  "enableForItemRepair": true,
+  "enableForPainting": true,
+  
   "enableForReload": true,
   "enableForRefuel": true,
   "enableForTrader": true,
-  "enableForRepairAndUpgrade": true,
-  "enableForQuests": true,
-  "enableFromVehicles": true,
-  "allowLockedContainers": true
+  "enableForGeneratorRefuel": true
 }
 [/code]
 
@@ -108,15 +139,27 @@ Edit [b]config.json[/b] in the mod folder to change settings:
 [*][b]range[/b] - How far to search for containers (in blocks). Default is 15, which covers a typical base floor. Set to -1 for unlimited (searches all loaded chunks, may cause lag). Set higher if you have a large base.
 [/list]
 
+[b]Storage Source Toggles[/b]
+[list]
+[*][b]pullFromVehicles[/b] - Include vehicle storage (4x4, motorcycle, etc.)
+[*][b]pullFromDrones[/b] - Include drone cargo compartment
+[*][b]pullFromDewCollectors[/b] - Include water from dew collectors
+[*][b]pullFromWorkstationOutputs[/b] - Include items from forge/workbench output slots (NOT input/fuel slots)
+[*][b]allowLockedContainers[/b] - Use items from password-locked containers you have access to
+[/list]
+
 [b]Feature Toggles[/b]
 [list]
-[*][b]enableForReload[/b] - Pull ammo from containers when reloading weapons.
-[*][b]enableForRefuel[/b] - Pull gas cans from containers when refueling vehicles.
-[*][b]enableForTrader[/b] - Use dukes from containers when buying from traders. Only useful if you store currency near a trader or use unlimited range.
-[*][b]enableForRepairAndUpgrade[/b] - Pull materials from containers when repairing or upgrading blocks.
-[*][b]enableForQuests[/b] - Count container items toward "Gather X" challenge objectives.
-[*][b]enableFromVehicles[/b] - Include parked vehicle storage in the search.
-[*][b]allowLockedContainers[/b] - Use items from password-locked containers. Only works on containers you have access to.
+[*][b]enableForCrafting[/b] - Use materials from containers for crafting
+[*][b]enableForQuests[/b] - Count container items toward "Gather X" challenge objectives
+[*][b]enableForRepairAndUpgrade[/b] - Pull materials from containers when repairing or upgrading blocks
+[*][b]enableForLockpicking[/b] - Use lockpicks stored in nearby containers
+[*][b]enableForItemRepair[/b] - Repair weapons/tools using repair kits from containers
+[*][b]enableForPainting[/b] - Use paint from containers with paint brush
+[*][b]enableForReload[/b] - Pull ammo from containers when reloading weapons
+[*][b]enableForRefuel[/b] - Pull gas cans from containers when refueling vehicles
+[*][b]enableForTrader[/b] - Use dukes from containers when buying from traders
+[*][b]enableForGeneratorRefuel[/b] - Refuel generators from nearby storage
 [/list]
 
 [b]Debug[/b]
@@ -126,13 +169,33 @@ Edit [b]config.json[/b] in the mod folder to change settings:
 
 [line]
 
+[size=4][b]Design Decisions[/b][/size]
+
+[b]Workstation Output Slots Only[/b]
+
+When pulling items from workstations (forge, workbench, chemistry station, campfire), ProxiCraft [b]only counts OUTPUT slots[/b]. Input, fuel, and tool slots are intentionally ignored.
+
+[b]Why?[/b]
+[list]
+[*][b]Output slots[/b] - Finished products ready to use ✓
+[*][b]Input slots[/b] - Items actively being processed/consumed ✗
+[*][b]Fuel slots[/b] - Fuel is being burned, not available ✗
+[*][b]Tool slots[/b] - Tools are in use (anvil, beaker, etc.) ✗
+[/list]
+
+[b]Example:[/b] You put 100 iron ore in the forge. You should NOT be able to craft iron bars from that ore - it's actively being smelted. But once the iron bars appear in the output slot, those ARE available for crafting.
+
+[line]
+
 [size=4][b]Console Commands[/b][/size]
 
 Press F1 to open the console, then type:
 [list]
 [*][b]pc status[/b] - Check if the mod is working
+[*][b]pc health[/b] - Show startup health check results
 [*][b]pc test[/b] - See what containers the mod can find
 [*][b]pc diag[/b] - Full diagnostic report
+[*][b]pc fullcheck[/b] - Full diagnostic report for bug reports
 [*][b]pc conflicts[/b] - Check for problems with other mods
 [*][b]pc toggle[/b] - Turn the mod on or off
 [*][b]pc refresh[/b] - Clear the container cache
@@ -181,36 +244,6 @@ Not tested in multiplayer. The mod may work, but shared containers could cause p
 [*]We are not responsible for any lost or damaged saves
 [*]Use at your own risk
 [/list]
-
-[line]
-
-[size=4][b]Coming Soon[/b][/size]
-
-We're actively testing the following features for an upcoming release:
-
-[b]New Storage Sources[/b]
-[list]
-[*][b]Drone Storage[/b] - Pull items from your drone's cargo compartment
-[*][b]Dew Collector Contents[/b] - Use water directly from dew collectors for recipes
-[*][b]Workstation Outputs[/b] - Use items from forge, campfire, and workstation output slots
-[/list]
-
-[b]New Features[/b]
-[list]
-[*][b]Painting from Containers[/b] - Use paint cans from storage with the paint brush tool
-[*][b]Lockpicking from Containers[/b] - Use lockpicks stored in nearby containers
-[*][b]Generator Refuel[/b] - Refuel generators and power sources from nearby storage
-[*][b]Item Repair[/b] - Repair weapons and tools using repair kits from containers
-[/list]
-
-[b]Stability Improvements[/b]
-[list]
-[*][b]Startup Health Check[/b] - Validates all features when the game loads. Silent when everything works, warns you if features break.
-[*][b]Auto-Adaptation[/b] - Mod attempts to survive game updates by finding renamed methods automatically.
-[*][b]Better Diagnostics[/b] - New [b]pc health[/b] and [b]pc fullcheck[/b] commands for troubleshooting.
-[/list]
-
-These features are currently in testing.
 
 [line]
 

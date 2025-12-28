@@ -201,8 +201,37 @@ Direct Postfix on `XUiM_PlayerInventory.GetItemCount` works reliably for:
 ## Container System
 
 ### Container Types
-- `TileEntitySecureLootContainer` - Standard storage containers
-- `TileEntityComposite` - Composite containers (may contain sub-containers)
+- `TileEntitySecureLootContainer` - Standard storage containers (legacy)
+- `TileEntityComposite` - Composite containers with TEFeatureStorage (newer system)
+- `TileEntityCollector` - Dew collectors (water collection)
+- `TileEntityWorkstation` - Forges, workbenches, campfires, chemistry stations
+
+### Vehicle Storage
+Vehicles store items in their `bag` property (inherited from `EntityAlive`):
+```csharp
+EntityVehicle vehicle = ...;
+var bag = ((EntityAlive)vehicle).bag;
+var slots = bag.GetSlots(); // ItemStack[]
+```
+
+### Drone Storage
+**CRITICAL:** Drones have a shared array between `lootContainer` and `bag`:
+```csharp
+EntityDrone drone = ...;
+// These share the SAME ItemStack[] array!
+drone.lootContainer.items == drone.bag.GetSlots(); // TRUE!
+```
+Always count from ONE source only (lootContainer recommended) to avoid double-counting.
+
+### Workstation Slots
+Workstations have multiple slot types - only OUTPUT should be counted:
+```csharp
+TileEntityWorkstation workstation = ...;
+workstation.Tool    // Tool slots (anvil, beaker) - DO NOT COUNT
+workstation.Input   // Input slots (ore, materials being processed) - DO NOT COUNT  
+workstation.Fuel    // Fuel slots (wood, coal being burned) - DO NOT COUNT
+workstation.Output  // Output slots (finished products) - COUNT THIS ONLY
+```
 
 ### Container Access
 Containers are accessed via chunk-based TileEntity queries through `GameManager.Instance.World`.
