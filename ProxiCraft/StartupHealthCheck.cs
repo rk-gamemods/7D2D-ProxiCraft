@@ -615,7 +615,7 @@ public static class StartupHealthCheck
         }
 
         // Also check transpiler success status from RobustTranspiler
-        var transpilerFeatures = new[] { "CraftOnActivated", "CraftMaxCraftable", "IngredientBinding",
+        var transpilerFeatures = new[] { "CraftHasItems", "CraftMaxCraftable", "IngredientBinding",
             "ReloadAmmo", "VehicleRefuel", "GeneratorRefuel" };
 
         foreach (var featureId in transpilerFeatures)

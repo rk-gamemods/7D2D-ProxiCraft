@@ -134,12 +134,12 @@ public class ProxiCraft : IModApi
                 string json = File.ReadAllText(configPath);
                 Config = JsonConvert.DeserializeObject<ModConfig>(json) ?? new ModConfig();
                 Config.MigrateDeprecatedSettings(); // Handle old config field names
-                Log("Configuration loaded from config.json");
+                FileLogInternal("Configuration loaded from config.json");
             }
             else
             {
                 Config = new ModConfig();
-                Log("Using default configuration");
+                FileLogInternal("Using default configuration");
             }
             
             // Always save config to update with any new fields
@@ -176,7 +176,11 @@ public class ProxiCraft : IModApi
         }
     }
     
-    public static void FileLog(string message)
+    /// <summary>
+    /// Internal file logging - always writes to file regardless of debug settings.
+    /// Use sparingly - only for errors, warnings, and critical startup messages.
+    /// </summary>
+    private static void FileLogInternal(string message)
     {
         InitFileLog();
         try
@@ -186,31 +190,61 @@ public class ProxiCraft : IModApi
         catch { }
     }
     
+    /// <summary>
+    /// Debug file logging - only writes to file when debug mode is enabled.
+    /// Use for verbose diagnostic output.
+    /// </summary>
+    public static void FileLog(string message)
+    {
+        // Only write to file when debug is enabled
+        if (Config?.isDebug != true)
+            return;
+        FileLogInternal(message);
+    }
+    
+    /// <summary>
+    /// General info logging - writes to Unity console always, file only when debug enabled.
+    /// Use for significant events users should see.
+    /// </summary>
     public static void Log(string message)
     {
         Debug.Log($"[{MOD_NAME}] {message}");
-        FileLog(message);
-    }
-    
-    public static void LogDebug(string message)
-    {
-        FileLog($"[DEBUG] {message}");
         if (Config?.isDebug == true)
         {
-            Debug.Log($"[{MOD_NAME}] [DEBUG] {message}");
+            FileLogInternal(message);
         }
     }
     
+    /// <summary>
+    /// Debug logging - writes to file when debug enabled, Unity console only when debug enabled.
+    /// Use for diagnostic messages.
+    /// </summary>
+    public static void LogDebug(string message)
+    {
+        if (Config?.isDebug != true)
+            return;
+        FileLogInternal($"[DEBUG] {message}");
+        Debug.Log($"[{MOD_NAME}] [DEBUG] {message}");
+    }
+    
+    /// <summary>
+    /// Warning logging - always writes to both Unity console and file.
+    /// Use for recoverable issues that users should be aware of.
+    /// </summary>
     public static void LogWarning(string message)
     {
         Debug.LogWarning($"[{MOD_NAME}] {message}");
-        FileLog($"[WARN] {message}");
+        FileLogInternal($"[WARN] {message}");
     }
     
+    /// <summary>
+    /// Error logging - always writes to both Unity console and file.
+    /// Use for errors that may affect functionality.
+    /// </summary>
     public static void LogError(string message)
     {
         Debug.LogError($"[{MOD_NAME}] {message}");
-        FileLog($"[ERROR] {message}");
+        FileLogInternal($"[ERROR] {message}");
     }
     
     #endregion
@@ -452,21 +486,24 @@ public class ProxiCraft : IModApi
     /// - Checks for transpiler conflicts before patching
     /// - Returns original code if pattern not found
     /// - Records status for runtime checks
+    /// 
+    /// NOTE: This patch targets the private 'hasItems' method which calls GetAllItemStacks.
+    /// The OnActivated method doesn't directly call GetAllItemStacks - it calls hasItems().
     /// </summary>
-    [HarmonyPatch(typeof(ItemActionEntryCraft), "OnActivated")]
+    [HarmonyPatch(typeof(ItemActionEntryCraft), "hasItems")]
     [HarmonyPriority(Priority.Low)]
-    private static class ItemActionEntryCraft_OnActivated_Patch
+    private static class ItemActionEntryCraft_hasItems_Patch
     {
-        private const string FEATURE_ID = "CraftOnActivated";
+        private const string FEATURE_ID = "CraftHasItems";
 
         // Use Transpiler to inject after GetAllItemStacks - adds container items to result
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator)
         {
             // Check for Transpiler conflicts first
-            var targetMethodInfo = AccessTools.Method(typeof(ItemActionEntryCraft), "OnActivated");
+            var targetMethodInfo = AccessTools.Method(typeof(ItemActionEntryCraft), "hasItems");
             if (AdaptivePatching.HasTranspilerConflict(targetMethodInfo))
             {
-                LogWarning("ItemActionEntryCraft.OnActivated has Transpiler conflict - using fallback");
+                LogWarning("ItemActionEntryCraft.hasItems has Transpiler conflict - using fallback");
                 RobustTranspiler.RecordTranspilerStatus(FEATURE_ID, false);
                 return instructions; // Return unchanged, rely on other patches
             }
@@ -1462,7 +1499,7 @@ public class ProxiCraft : IModApi
 
     /// <summary>
     /// Cache container reference on open - needed for accurate counting.
-    /// NO event firing here - just caching.
+    /// Also invalidates item count cache to ensure fresh data.
     /// </summary>
     [HarmonyPatch(typeof(XUiC_LootContainer), "OnOpen")]
     [HarmonyPriority(Priority.Low)]  
@@ -1481,6 +1518,7 @@ public class ProxiCraft : IModApi
                 {
                     ContainerManager.CurrentOpenContainer = lootable;
                     ContainerManager.CurrentOpenContainerPos = (lootable as TileEntity)?.ToWorldPos() ?? Vector3i.zero;
+                    ContainerManager.InvalidateCache(); // Force recount with new open container
                     FileLog($"[CACHE] OnOpen: Set open container at {ContainerManager.CurrentOpenContainerPos}");
                 }
             }
@@ -1493,6 +1531,7 @@ public class ProxiCraft : IModApi
     
     /// <summary>
     /// Clear cached container reference on close.
+    /// Also invalidates item count cache to ensure fresh data.
     /// </summary>
     [HarmonyPatch(typeof(XUiC_LootContainer), "OnClose")]
     [HarmonyPriority(Priority.Low)]
@@ -1502,6 +1541,7 @@ public class ProxiCraft : IModApi
         {
             ContainerManager.CurrentOpenContainer = null;
             ContainerManager.CurrentOpenContainerPos = Vector3i.zero;
+            ContainerManager.InvalidateCache(); // Force recount without open container
             FileLog("[CACHE] OnClose: Cleared");
         }
     }
@@ -1509,8 +1549,7 @@ public class ProxiCraft : IModApi
     /// <summary>
     /// When a container slot changes, fire the DragAndDropItemChanged event.
     /// Challenges already listen to this event, so they will recount items.
-    /// This fires AFTER the slot change is complete (Postfix), so item transfer
-    /// should already be finished - avoiding duplication issues.
+    /// Also invalidates item count cache for fresh data.
     /// </summary>
     [HarmonyPatch(typeof(XUiC_LootContainer), "HandleLootSlotChangedEvent")]
     [HarmonyPriority(Priority.Low)]
@@ -1518,6 +1557,9 @@ public class ProxiCraft : IModApi
     {
         public static void Postfix()
         {
+            // Always invalidate cache when container contents change
+            ContainerManager.InvalidateCache();
+            
             if (!Config?.modEnabled == true || !Config?.enableForQuests == true)
                 return;
             

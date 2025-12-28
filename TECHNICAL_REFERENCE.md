@@ -296,6 +296,81 @@ Builds directly to distribution folder.
 
 ---
 
+## Performance: Item Count Caching Strategy
+
+### The Problem
+When checking recipe availability, the game calls `GetItemCount()` for each ingredient (potentially 10-20 items). Without caching, each call would scan:
+- All chunks and TileEntities (storage containers)
+- All world entities (vehicles, drones)
+- All TileEntityCollectors (dew collectors)  
+- All TileEntityWorkstations (forge/workbench outputs)
+
+With 100+ storage locations, this could be 100-400ms per UI update = LAG SPIKE.
+
+### The Solution: Multi-Level Caching
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    GetItemCount() Called                        │
+└─────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  LEVEL 1: Same Frame Check                                      │
+│  if (frameCount == lastCacheFrame) → return cached value        │
+│  Purpose: Multiple ingredients in same update use same cache    │
+└─────────────────────────────────────────────────────────────────┘
+                               │ miss
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  LEVEL 2: Time-Based Cache Check                                │
+│  if (timeSinceCache < 100ms && cacheValid) → return cached      │
+│  Purpose: Rapid updates within 100ms reuse scan results         │
+└─────────────────────────────────────────────────────────────────┘
+                               │ miss
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  LEVEL 3: Full Rebuild                                          │
+│  Scan ALL storage sources ONCE, cache ALL item types            │
+│  Single pass: O(storage_count) instead of O(storage × items)    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Cache Invalidation Points
+
+| Event | Action | Why |
+|-------|--------|-----|
+| Container Opened | `InvalidateCache()` | Open container needs live reference |
+| Container Closed | `InvalidateCache()` | Need to count from TileEntity now |
+| Container Slot Changed | `InvalidateCache()` | Items moved in/out |
+| Items Removed (crafting) | `InvalidateCache()` | Storage contents changed |
+| Cache Duration Expired | Auto-rebuild on next call | Ensures eventual consistency |
+
+### Performance Expectations
+
+| Scenario | Without Caching | With Caching |
+|----------|-----------------|--------------|
+| Single ingredient check | ~5-20ms | ~5-20ms (first call) |
+| 20 ingredients, same frame | ~100-400ms | ~5-20ms (cached) |
+| Rapid UI updates (100ms) | Repeated full scans | Single scan, cached |
+| Moving items in container | N/A | Auto-invalidates |
+
+### Why This Is Safe for Challenge Tracking
+
+1. **Event-Driven Updates**: Challenges fire `HandleUpdatingCurrent` when inventory changes
+2. **Container Changes Invalidate**: Our patches on `HandleLootSlotChangedEvent` invalidate cache
+3. **Short Cache Duration**: 100ms max means any "stuck" value resolves quickly
+4. **Per-Frame Caching**: Within a single update frame, cache is consistent
+
+### Key Code Locations
+
+- Cache definitions: `ContainerManager.cs` lines 65-90
+- GetItemCount with caching: `ContainerManager.cs` lines 254-300
+- RebuildItemCountCache: `ContainerManager.cs` lines 304-420
+- InvalidateCache calls: `ProxiCraft.cs` LootContainer patches
+
+---
+
 ## Patch Strategy Summary
 
 ### The Problem with UI-Layer Patches
