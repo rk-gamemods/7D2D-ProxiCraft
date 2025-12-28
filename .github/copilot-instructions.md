@@ -19,8 +19,7 @@ ProxiCraft is a 7 Days to Die mod that allows players to use items from nearby s
 │   ├── Assembly-CSharp/          # Main game code (~4000+ .cs files)
 │   └── Assembly-CSharp-firstpass/
 ├── temp_analysis/                # Temporary folder for analyzing other mods
-│   ├── BeyondStorage2/           # Downloaded mod package
-│   └── BeyondStorage2_src/       # Decompiled source for analysis
+│   └── <SomeMod>/                # Downloaded mods and decompiled source (git-ignored)
 └── ProxiCraft/                   # THIS REPOSITORY
     ├── ProxiCraft/               # Source code folder
     │   ├── ProxiCraft.cs         # Main mod class, Harmony patches, entry point
