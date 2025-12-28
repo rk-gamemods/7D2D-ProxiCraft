@@ -471,6 +471,42 @@ pc perf report   - Detailed timing report
    float rangeSquared = range * range; // Once before loop
    ```
 
+### Real-World Performance Test Results
+
+**Test Environment:**
+- CPU: AMD Ryzen 9800X3D (high-end reference)
+- Storage sources: ~20 containers of mixed types (chests, vehicles, drones, workstations, dew collectors)
+- Game version: 7D2D V2.5
+
+**Results:**
+```
+╔══════════════════════════════════════════════════════════════════╗
+║ Operation              │ Calls │ Avg(ms) │ Max(ms) │ Cache Hit % ║
+╟────────────────────────┼───────┼─────────┼─────────┼─────────────╢
+║ GetItemCount           │  6627 │    0.00 │    0.30 │       98.7% ║
+║ RebuildItemCountCache  │    86 │    0.15 │    0.22 │         N/A ║
+║ CountContainers        │    86 │    0.09 │    0.14 │         N/A ║
+║ RefreshStorages        │     8 │    0.44 │    2.39 │         N/A ║
+║ CountDewCollectors     │    86 │    0.03 │    0.04 │         N/A ║
+║ CountWorkstations      │    86 │    0.03 │    0.03 │         N/A ║
+║ CountVehicles          │   172 │    0.01 │    0.01 │         N/A ║
+║ CountDrones            │   172 │    0.00 │    0.00 │         N/A ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+**Analysis:**
+- **6,627 item queries** handled with 98.7% cache hit rate
+- **GetItemCount** averages 0.00ms (sub-microsecond when cached)
+- **RefreshStorages max 2.39ms** is the cold-cache first scan; subsequent calls average 0.44ms
+- **Full cache rebuild** takes only 0.15ms average
+- At 60fps (~16.6ms frame budget), worst-case 2.39ms uses only 14% of one frame
+
+**Headroom Assessment:**
+- High-end CPU tested leaves significant margin for slower systems
+- Even 10x slower CPU would keep worst-case under 24ms (still playable)
+- Cache efficiency (98.7%) means most operations are essentially free
+- Storage count scaling: ~20 sources at 0.15ms rebuild suggests ~100 sources would still be under 1ms
+
 ---
 
 ## Patch Strategy Summary
