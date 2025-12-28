@@ -63,6 +63,21 @@ dotnet build -c Release
 - Output goes directly to `Release\ProxiCraft\ProxiCraft.dll`
 - The csproj is configured with `<OutputPath>Release\ProxiCraft\</OutputPath>`
 
+### Force Clean Rebuild
+**IMPORTANT:** `dotnet build` uses incremental compilation and may NOT recompile if it thinks nothing changed. To force a full rebuild:
+
+```powershell
+cd C:\Users\Admin\Documents\GIT\GameMods\7D2DMods\ProxiCraft
+Remove-Item obj -Recurse -Force
+Remove-Item Release\ProxiCraft\ProxiCraft.dll -Force -ErrorAction SilentlyContinue
+dotnet build -c Release --no-incremental
+```
+
+**When to force rebuild:**
+- After making changes that don't seem to take effect
+- When DLL timestamp doesn't update after build
+- Before pushing release binaries to ensure fresh compilation
+
 ### Testing In-Game
 1. Copy `Release\ProxiCraft\` folder to `C:\Steam\steamapps\common\7 Days To Die\Mods\`
 2. Launch game with EAC disabled
@@ -261,6 +276,39 @@ git checkout -b feature/new-feature
 git add -A; git commit -m "Add new feature"; git push -u origin feature/new-feature
 # ... when ready ...
 git checkout master; git merge feature/new-feature; git push
+```
+
+### Pushing Binary Files (DLL, ZIP)
+**CRITICAL:** GitHub CDN has caching delays. Binary files may appear stale for 1-2 minutes after push.
+
+**If binaries don't update on GitHub:**
+1. Delete the files from git, commit, and push
+2. Force clean rebuild (see above)
+3. Re-add the files, commit, and push
+
+```powershell
+# Force binary update workflow
+git rm Release/ProxiCraft.zip Release/ProxiCraft/ProxiCraft.dll
+git commit -m "Remove binaries to force update"
+git push
+
+# Force clean rebuild
+Remove-Item obj -Recurse -Force
+dotnet build -c Release --no-incremental
+
+# Re-add fresh binaries
+git add Release/ProxiCraft.zip Release/ProxiCraft/ProxiCraft.dll
+git commit -m "Add freshly rebuilt binaries"
+git push
+```
+
+**To verify binaries on GitHub are correct:**
+```powershell
+# Download and check DLL timestamp inside zip
+Invoke-WebRequest -Uri "https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/BRANCH/Release/ProxiCraft.zip" -OutFile "test.zip"
+Expand-Archive -Path test.zip -DestinationPath test_extract -Force
+Get-Item test_extract\ProxiCraft\ProxiCraft.dll | Select-Object Name, Length, LastWriteTime
+Remove-Item test.zip, test_extract -Recurse -Force
 ```
 
 ---
