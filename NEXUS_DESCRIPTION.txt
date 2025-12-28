@@ -81,22 +81,6 @@ ProxiCraft is a complete rewrite with a different architecture:
 
 The expanded storage sources in v1.1.0 (vehicles, drones, dew collectors, workstation outputs) were inspired by [url=https://www.nexusmods.com/7daystodie/mods/7809]Beyond Storage 2 by superguru[/url]. If you want a feature-rich alternative, check out their mod.
 
-[b]How ProxiCraft differs:[/b]
-[list]
-[*][b]Minimal Transpilers[/b] - Beyond Storage 2 uses transpilers extensively. ProxiCraft avoids them where possible, using postfix patches that are less likely to break on game updates.
-[*][b]Simpler Architecture[/b] - Fewer moving parts means fewer potential conflicts and easier troubleshooting.
-[*][b]Performance Profiler[/b] - Built-in profiler to identify bottlenecks on your specific hardware.
-[*][b]Startup Health Check[/b] - Automatic validation that all features are working correctly.
-[*][b]Graceful Degradation[/b] - If a feature breaks, only that feature disables instead of the whole mod.
-[/list]
-
-[b]Beyond Storage 2 advantages:[/b]
-[list]
-[*]More mature codebase with longer development history
-[*]Additional features we haven't implemented yet
-[*]Larger user base for community support
-[/list]
-
 Choose whichever mod fits your needs. Do not use both simultaneously.
 
 [line]
