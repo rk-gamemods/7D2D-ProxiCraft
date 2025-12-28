@@ -540,6 +540,62 @@ public class ProxiCraft : IModApi
         }
     }
 
+    /// <summary>
+    /// Marks the HUD ammo counter as dirty to force recalculation.
+    /// Called when container contents change to update the ammo count display.
+    /// The HUD only recalculates ammo when IsDirty is true or hasChanged() returns true,
+    /// but container changes don't trigger hasChanged(), so we must set IsDirty.
+    /// </summary>
+    public static void MarkHudAmmoDirty()
+    {
+        if (!Config?.modEnabled == true || !Config?.enableHudAmmoCounter == true)
+            return;
+
+        try
+        {
+            var player = GameManager.Instance?.World?.GetPrimaryPlayer();
+            if (player == null)
+                return;
+
+            var xui = LocalPlayerUI.GetUIForPlayer(player)?.xui;
+            if (xui == null)
+                return;
+
+            // Find all HUD stat bars and mark those tracking ActiveItem (ammo) as dirty
+            var statBars = xui.GetChildrenByType<XUiC_HUDStatBar>();
+            if (statBars != null)
+            {
+                foreach (var statBar in statBars)
+                {
+                    if (statBar != null)
+                    {
+                        // Check if this is the ammo stat bar by checking the StatType property
+                        // HUDStatTypes.ActiveItem = 6 (handles ammo display)
+                        try
+                        {
+                            var statTypeField = typeof(XUiC_HUDStatBar).GetField("statType",
+                                BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Instance);
+                            if (statTypeField != null)
+                            {
+                                var statType = (int)statTypeField.GetValue(statBar);
+                                if (statType == 6) // HUDStatTypes.ActiveItem
+                                {
+                                    statBar.IsDirty = true;
+                                    FileLog("[REFRESH] Marked HUD ammo stat bar as dirty");
+                                }
+                            }
+                        }
+                        catch { /* Silently ignore reflection errors */ }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            FileLog($"MarkHudAmmoDirty error: {ex.Message}");
+        }
+    }
+
     #endregion
 
     #region Harmony Patches - Game Events
@@ -1864,7 +1920,8 @@ public class ProxiCraft : IModApi
     /// <summary>
     /// When a container slot changes, fire the DragAndDropItemChanged event.
     /// Challenges already listen to this event, so they will recount items.
-    /// Also invalidates item count cache for fresh data and refreshes recipe tracker.
+    /// Also invalidates item count cache for fresh data, refreshes recipe tracker,
+    /// and marks HUD ammo counter as dirty.
     /// </summary>
     [HarmonyPatch(typeof(XUiC_LootContainer), "HandleLootSlotChangedEvent")]
     [HarmonyPriority(Priority.Low)]
@@ -1877,6 +1934,9 @@ public class ProxiCraft : IModApi
 
             // Refresh recipe tracker to show updated ingredient counts
             RefreshRecipeTracker();
+
+            // Mark HUD ammo counter as dirty to refresh display
+            MarkHudAmmoDirty();
 
             if (!Config?.modEnabled == true || !Config?.enableForQuests == true)
                 return;
@@ -2014,7 +2074,7 @@ public class ProxiCraft : IModApi
     /// <summary>
     /// Track when items are moved in vehicle storage.
     /// Fire DragAndDropItemChanged to update challenge counts.
-    /// Also refreshes recipe tracker.
+    /// Also refreshes recipe tracker and HUD ammo counter.
     /// </summary>
     [HarmonyPatch(typeof(XUiC_VehicleContainer), "HandleLootSlotChangedEvent")]
     [HarmonyPriority(Priority.Low)]
@@ -2027,6 +2087,9 @@ public class ProxiCraft : IModApi
 
             // Refresh recipe tracker to show updated ingredient counts
             RefreshRecipeTracker();
+
+            // Mark HUD ammo counter as dirty to refresh display
+            MarkHudAmmoDirty();
 
             if (!Config?.modEnabled == true || !Config?.enableForQuests == true)
                 return;
@@ -2124,7 +2187,7 @@ public class ProxiCraft : IModApi
     /// Track when items are moved in workstation OUTPUT grid.
     /// Fire DragAndDropItemChanged to update challenge counts.
     /// Only tracks output grid - we don't want to track input/fuel/tool grids.
-    /// Also refreshes recipe tracker.
+    /// Also refreshes recipe tracker and HUD ammo counter.
     /// </summary>
     [HarmonyPatch(typeof(XUiC_WorkstationOutputGrid), "UpdateBackend")]
     [HarmonyPriority(Priority.Low)]
@@ -2137,6 +2200,9 @@ public class ProxiCraft : IModApi
 
             // Refresh recipe tracker to show updated ingredient counts
             RefreshRecipeTracker();
+
+            // Mark HUD ammo counter as dirty to refresh display
+            MarkHudAmmoDirty();
 
             if (!Config?.modEnabled == true || !Config?.enableForQuests == true)
                 return;
@@ -2585,6 +2651,9 @@ public class ProxiCraft : IModApi
                 // Refresh recipe tracker
                 RefreshRecipeTracker();
                 
+                // Mark HUD ammo counter as dirty
+                MarkHudAmmoDirty();
+                
                 // Fire DragAndDropItemChanged to update challenge tracker
                 if (Config?.enableForQuests == true)
                 {
@@ -2631,8 +2700,16 @@ public class ProxiCraft : IModApi
     // ====================================================================================
 
     /// <summary>
-    /// Patch XUiM_PlayerInventory.CanSwapItems to consider containers for currency.
-    /// This allows the purchase to proceed when currency is in containers.
+    /// Patch XUiM_PlayerInventory.CanSwapItems to consider containers for both currency and items.
+    /// This allows purchases when currency is in containers, and selling when items are in containers.
+    /// 
+    /// BUYING: _a = currency (dukes), _b = item being purchased
+    ///   - We need enough currency in inventory+containers to pay
+    ///   - We need space for the purchased item
+    ///   
+    /// SELLING: _a = item being sold, _b = currency (dukes) being received
+    ///   - We need the items to sell (vanilla already checked inventory, we just approve if containers have it)
+    ///   - We need space for the currency being received
     /// </summary>
     [HarmonyPatch(typeof(XUiM_PlayerInventory), nameof(XUiM_PlayerInventory.CanSwapItems))]
     [HarmonyPriority(Priority.Low)]
@@ -2650,25 +2727,49 @@ public class ProxiCraft : IModApi
 
             try
             {
-                // Check if _a is currency (what we're paying)
                 var currencyItem = ItemClass.GetItem(TraderInfo.CurrencyItem, false);
-                if (_a?.itemValue?.type != currencyItem.type)
-                    return;
-
-                // Check if we have enough currency in containers
-                int containerCount = ContainerManager.GetItemCount(Config, currencyItem);
-                int playerCount = __instance.GetItemCount(currencyItem);
-                int totalCurrency = playerCount + containerCount;
-
-                if (totalCurrency >= _a.count)
+                
+                // CASE 1: BUYING - _a is currency (what we're paying)
+                if (_a?.itemValue?.type == currencyItem.type)
                 {
-                    // Check if we have space for _b (the item we're buying)
-                    int availableSpace = __instance.CountAvailableSpaceForItem(_b.itemValue);
-                    if (availableSpace >= _b.count)
+                    // Check if we have enough currency in containers
+                    int containerCount = ContainerManager.GetItemCount(Config, currencyItem);
+                    int playerCount = __instance.GetItemCount(currencyItem);
+                    int totalCurrency = playerCount + containerCount;
+
+                    if (totalCurrency >= _a.count)
                     {
-                        __result = true;
-                        LogDebug($"CanSwapItems: Allowing purchase, currency={totalCurrency}, needed={_a.count}");
+                        // Check if we have space for _b (the item we're buying)
+                        int availableSpace = __instance.CountAvailableSpaceForItem(_b.itemValue);
+                        if (availableSpace >= _b.count)
+                        {
+                            __result = true;
+                            LogDebug($"CanSwapItems (BUY): Allowing purchase, currency={totalCurrency}, needed={_a.count}");
+                        }
                     }
+                    return;
+                }
+                
+                // CASE 2: SELLING - _b is currency (what we're receiving)
+                if (_b?.itemValue?.type == currencyItem.type && Config?.enableTraderSelling == true)
+                {
+                    // Check if we have the items to sell in containers
+                    int containerCount = ContainerManager.GetItemCount(Config, _a.itemValue);
+                    int playerCount = __instance.GetItemCount(_a.itemValue);
+                    int totalItems = playerCount + containerCount;
+
+                    if (totalItems >= _a.count)
+                    {
+                        // Check if we have space for _b (the currency we're receiving)
+                        // Currency can stack, so check if we can fit it
+                        int availableSpace = __instance.CountAvailableSpaceForItem(_b.itemValue, limitToOneStack: false);
+                        if (availableSpace >= _b.count)
+                        {
+                            __result = true;
+                            LogDebug($"CanSwapItems (SELL): Allowing sale, items={totalItems}, needed={_a.count}, space for dukes={availableSpace}");
+                        }
+                    }
+                    return;
                 }
             }
             catch (Exception ex)
