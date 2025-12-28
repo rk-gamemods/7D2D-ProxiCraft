@@ -1760,6 +1760,112 @@ public class ProxiCraft : IModApi
         }
     }
 
+    // ====================================================================================
+    // WORKSTATION STORAGE PATCHES
+    // ====================================================================================
+    // Workstations (forge, workbench, chemistry station, etc.) have multiple slot types:
+    // - Tool slots: Required tools for crafting
+    // - Input slots: Materials being processed (smelting ore, etc.)
+    // - Fuel slots: Fuel being consumed
+    // - Output slots: Finished products <-- THIS IS WHAT WE COUNT
+    //
+    // We ONLY count from OUTPUT slots. Input/fuel slots contain items that are being
+    // consumed for functionality and should NOT be counted as available materials.
+    // ====================================================================================
+    
+    /// <summary>
+    /// Track when workstation window is opened.
+    /// Sets CurrentOpenWorkstation so we can count from its Output properly.
+    /// </summary>
+    [HarmonyPatch(typeof(XUiC_WorkstationWindowGroup), "OnOpen")]
+    [HarmonyPriority(Priority.Low)]
+    private static class WorkstationWindowGroup_OnOpen_Patch
+    {
+        public static void Postfix(XUiC_WorkstationWindowGroup __instance)
+        {
+            try
+            {
+                var workstationDataField = typeof(XUiC_WorkstationWindowGroup).GetField("WorkstationData",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                
+                var workstationData = workstationDataField?.GetValue(__instance);
+                if (workstationData != null)
+                {
+                    // XUiM_Workstation has a TileEntity property
+                    var teProperty = workstationData.GetType().GetProperty("TileEntity");
+                    var workstation = teProperty?.GetValue(workstationData) as TileEntityWorkstation;
+                    
+                    if (workstation != null)
+                    {
+                        ContainerManager.CurrentOpenWorkstation = workstation;
+                        ContainerManager.InvalidateCache();
+                        FileLog($"[CACHE] WorkstationWindowGroup.OnOpen: Set open workstation at {workstation.ToWorldPos()}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FileLog($"WorkstationWindowGroup_OnOpen_Patch: Exception: {ex.Message}");
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Track when workstation window is closed.
+    /// </summary>
+    [HarmonyPatch(typeof(XUiC_WorkstationWindowGroup), "OnClose")]
+    [HarmonyPriority(Priority.Low)]
+    private static class WorkstationWindowGroup_OnClose_Patch
+    {
+        public static void Postfix()
+        {
+            ContainerManager.CurrentOpenWorkstation = null;
+            ContainerManager.InvalidateCache();
+            FileLog("[CACHE] WorkstationWindowGroup.OnClose: Cleared");
+        }
+    }
+    
+    /// <summary>
+    /// Track when items are moved in workstation OUTPUT grid.
+    /// Fire DragAndDropItemChanged to update challenge counts.
+    /// Only tracks output grid - we don't want to track input/fuel/tool grids.
+    /// </summary>
+    [HarmonyPatch(typeof(XUiC_WorkstationOutputGrid), "UpdateBackend")]
+    [HarmonyPriority(Priority.Low)]
+    private static class WorkstationOutputGrid_UpdateBackend_Patch
+    {
+        public static void Postfix()
+        {
+            // Always invalidate cache when workstation output changes
+            ContainerManager.InvalidateCache();
+            
+            if (!Config?.modEnabled == true || !Config?.enableForQuests == true)
+                return;
+            
+            try
+            {
+                var player = GameManager.Instance?.World?.GetPrimaryPlayer();
+                if (player == null)
+                    return;
+                
+                // Fire DragAndDropItemChanged - challenges listen to this
+                var eventField = typeof(EntityPlayerLocal).GetField("DragAndDropItemChanged",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                
+                if (eventField != null)
+                {
+                    var eventDelegate = eventField.GetValue(player) as Delegate;
+                    eventDelegate?.DynamicInvoke();
+                    FileLog("[RECOUNT] Fired DragAndDropItemChanged from workstation output change");
+                }
+            }
+            catch (Exception ex)
+            {
+                FileLog($"WorkstationOutputGrid_UpdateBackend_Patch: Exception: {ex.Message}");
+            }
+        }
+    }
+
     #endregion
 
     #region Harmony Patches - Painting Support

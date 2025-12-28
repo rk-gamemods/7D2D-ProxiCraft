@@ -123,6 +123,15 @@ public static class ContainerManager
     // ====================================================================================
     public static EntityDrone CurrentOpenDrone { get; set; }
     
+    // ====================================================================================
+    // LIVE OPEN WORKSTATION REFERENCE  
+    // ====================================================================================
+    // Set by WorkstationWindowGroup_OnOpen_Patch, cleared by OnClose.
+    // When a workstation is open, we need to count from its live UI data and skip
+    // counting it separately in CountAllWorkstationOutputItems.
+    // ====================================================================================
+    public static TileEntityWorkstation CurrentOpenWorkstation { get; set; }
+    
     /// <summary>
     /// Forces the next container scan to refresh the cache.
     /// Call this when containers may have changed contents.
@@ -151,6 +160,7 @@ public static class ContainerManager
         CurrentOpenContainerPos = Vector3i.zero;
         CurrentOpenVehicle = null;
         CurrentOpenDrone = null;
+        CurrentOpenWorkstation = null;
     }
 
     /// <summary>
@@ -369,6 +379,21 @@ public static class ContainerManager
                             if (stack?.itemValue != null && !stack.IsEmpty())
                                 AddToCountCache(stack.itemValue.type, stack.count);
                         }
+                    }
+                }
+            }
+            
+            // THIRD: Count from open workstation's OUTPUT only (live data)
+            // When a workstation is open, count from its Output property
+            if (CurrentOpenWorkstation != null)
+            {
+                var output = CurrentOpenWorkstation.Output;
+                if (output != null)
+                {
+                    foreach (var stack in output)
+                    {
+                        if (stack?.itemValue != null && !stack.IsEmpty())
+                            AddToCountCache(stack.itemValue.type, stack.count);
                     }
                 }
             }
@@ -660,6 +685,8 @@ public static class ContainerManager
 
     /// <summary>
     /// Counts all items in workstation outputs and adds to cache.
+    /// Only counts from OUTPUT slots, NOT input/fuel/tool slots.
+    /// Skips the currently open workstation (already counted via CurrentOpenWorkstation).
     /// </summary>
     private static void CountAllWorkstationOutputItems(World world, Vector3 playerPos, ModConfig config, Vector3i openContainerPos)
     {
@@ -687,6 +714,10 @@ public static class ContainerManager
                             continue;
 
                         if (!(tileEntity is TileEntityWorkstation workstation))
+                            continue;
+
+                        // Skip the currently open workstation - already counted via CurrentOpenWorkstation
+                        if (CurrentOpenWorkstation != null && workstation == CurrentOpenWorkstation)
                             continue;
 
                         var worldPos = tileEntity.ToWorldPos();
