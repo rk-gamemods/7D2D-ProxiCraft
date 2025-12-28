@@ -965,10 +965,13 @@ public class ProxiCraft : IModApi
     }
 
     /// <summary>
-    /// Patch RemoveItems to also remove from containers when crafting.
+    /// Patch RemoveItems to also remove from containers when crafting/trading.
     /// 
     /// BACKPACK COMPATIBILITY: This is a Postfix - we only remove from containers
     /// what the inventory removal couldn't satisfy. Inventory structure unchanged.
+    /// 
+    /// LOGIC FIX: We track inventory counts BEFORE removal in Prefix, then calculate
+    /// how much still needs to come from containers in Postfix.
     /// </summary>
     [HarmonyPatch(typeof(XUiM_PlayerInventory), nameof(XUiM_PlayerInventory.RemoveItems))]
     [HarmonyPriority(Priority.Low)]
@@ -977,9 +980,10 @@ public class ProxiCraft : IModApi
         // Track what needs to be removed from containers after inventory removal
         private static IList<ItemStack> _pendingContainerRemovals;
         private static int _pendingMultiplier;
+        private static Dictionary<int, int> _inventoryCountsBefore = new Dictionary<int, int>();
 
         [HarmonyPrefix]
-        public static void Prefix(IList<ItemStack> _itemStacks, int _multiplier)
+        public static void Prefix(XUiM_PlayerInventory __instance, IList<ItemStack> _itemStacks, int _multiplier)
         {
             if (!Config?.modEnabled == true)
                 return;
@@ -987,6 +991,20 @@ public class ProxiCraft : IModApi
             // Store what's being requested for the Postfix
             _pendingContainerRemovals = _itemStacks;
             _pendingMultiplier = _multiplier;
+            
+            // Track inventory counts BEFORE removal so we can calculate deficit correctly
+            _inventoryCountsBefore.Clear();
+            foreach (var item in _itemStacks)
+            {
+                if (item == null || item.IsEmpty())
+                    continue;
+                    
+                int itemType = item.itemValue.type;
+                if (!_inventoryCountsBefore.ContainsKey(itemType))
+                {
+                    _inventoryCountsBefore[itemType] = __instance.GetItemCount(item.itemValue);
+                }
+            }
         }
 
         [HarmonyPostfix]
@@ -999,42 +1017,33 @@ public class ProxiCraft : IModApi
             if (!IsGameReady())
             {
                 _pendingContainerRemovals = null;
+                _inventoryCountsBefore.Clear();
                 return;
             }
 
             try
             {
-                // Check what inventory still has - anything short needs to come from containers
-                var inventoryItems = __instance.GetAllItemStacks();
-                
                 foreach (var required in _pendingContainerRemovals)
                 {
                     if (required == null || required.IsEmpty())
                         continue;
 
                     int neededTotal = required.count * _pendingMultiplier;
+                    int itemType = required.itemValue.type;
                     
-                    // Count what's left in inventory after vanilla removal
-                    int inventoryHas = 0;
-                    foreach (var invItem in inventoryItems)
-                    {
-                        if (invItem?.itemValue != null && 
-                            invItem.itemValue.type == required.itemValue.type)
-                        {
-                            inventoryHas += invItem.count;
-                        }
-                    }
+                    // Get how much inventory HAD before removal
+                    int inventoryHadBefore = _inventoryCountsBefore.TryGetValue(itemType, out int count) ? count : 0;
                     
-                    // The vanilla method removed what it could from inventory
-                    // We need to remove any shortfall from containers
-                    // Note: This is a heuristic - we remove (needed - inventory_remaining) from containers
-                    // This works because vanilla removes from inventory first
+                    // Calculate how much inventory could satisfy
+                    int inventorySatisfied = Math.Min(neededTotal, inventoryHadBefore);
                     
-                    int fromContainers = neededTotal - inventoryHas;
+                    // The rest needs to come from containers
+                    int fromContainers = neededTotal - inventorySatisfied;
+                    
                     if (fromContainers > 0)
                     {
                         int removed = ContainerManager.RemoveItems(Config, required.itemValue, fromContainers);
-                        LogDebug($"Removed {removed}/{fromContainers} {required.itemValue?.ItemClass?.GetItemName()} from containers");
+                        LogDebug($"Removed {removed}/{fromContainers} {required.itemValue?.ItemClass?.GetItemName()} from containers (had {inventoryHadBefore} in inventory, needed {neededTotal})");
                     }
                 }
             }
@@ -1045,6 +1054,7 @@ public class ProxiCraft : IModApi
             finally
             {
                 _pendingContainerRemovals = null;
+                _inventoryCountsBefore.Clear();
             }
         }
     }
@@ -2464,6 +2474,7 @@ public class ProxiCraft : IModApi
         // Cached field references for performance
         private static FieldInfo _activeAmmoField;
         private static FieldInfo _ammoCountField;
+        private static bool _fieldsInitialized;
 
         public static void Postfix(XUiC_HUDStatBar __instance)
         {
@@ -2477,20 +2488,33 @@ public class ProxiCraft : IModApi
             try
             {
                 // Cache reflection lookups (one-time per session)
-                if (_activeAmmoField == null)
+                // Try both public and non-public since game uses publicizer
+                if (!_fieldsInitialized)
                 {
+                    _fieldsInitialized = true;
+                    
+                    // Try public first (publicized assemblies), then non-public (original)
                     _activeAmmoField = typeof(XUiC_HUDStatBar).GetField("activeAmmoItemValue",
-                        BindingFlags.NonPublic | BindingFlags.Instance);
-                }
-                if (_ammoCountField == null)
-                {
+                        BindingFlags.Public | BindingFlags.Instance);
+                    if (_activeAmmoField == null)
+                    {
+                        _activeAmmoField = typeof(XUiC_HUDStatBar).GetField("activeAmmoItemValue",
+                            BindingFlags.NonPublic | BindingFlags.Instance);
+                    }
+                    
                     _ammoCountField = typeof(XUiC_HUDStatBar).GetField("currentAmmoCount",
-                        BindingFlags.NonPublic | BindingFlags.Instance);
+                        BindingFlags.Public | BindingFlags.Instance);
+                    if (_ammoCountField == null)
+                    {
+                        _ammoCountField = typeof(XUiC_HUDStatBar).GetField("currentAmmoCount",
+                            BindingFlags.NonPublic | BindingFlags.Instance);
+                    }
+                    
+                    FileLogInternal($"HUD ammo patch: activeAmmoField={_activeAmmoField != null}, ammoCountField={_ammoCountField != null}");
                 }
 
                 if (_activeAmmoField == null || _ammoCountField == null)
                 {
-                    LogDebug("HUD ammo patch: Could not find required fields");
                     return;
                 }
 
@@ -2515,6 +2539,141 @@ public class ProxiCraft : IModApi
             catch (Exception ex)
             {
                 LogDebug($"HUD ammo patch error: {ex.Message}");
+            }
+        }
+    }
+
+    #endregion
+
+    #region Harmony Patches - Slot Lock Change Handler
+
+    // ====================================================================================
+    // SLOT LOCK CHANGE HANDLER
+    // ====================================================================================
+    //
+    // When users lock/unlock slots (Ctrl+Click), we need to:
+    // 1. Invalidate item count cache (locked items shouldn't be counted)
+    // 2. Fire DragAndDropItemChanged to update challenge tracker
+    // 3. Refresh recipe tracker to update ingredient counts
+    //
+    // This ensures all displays update immediately when slot locks change.
+    // ====================================================================================
+
+    /// <summary>
+    /// Patch XUiC_ItemStack.UserLockedSlot setter to trigger updates when lock state changes.
+    /// </summary>
+    [HarmonyPatch(typeof(XUiC_ItemStack), nameof(XUiC_ItemStack.UserLockedSlot), MethodType.Setter)]
+    [HarmonyPriority(Priority.Low)]
+    private static class XUiC_ItemStack_UserLockedSlot_Patch
+    {
+        public static void Postfix(XUiC_ItemStack __instance, bool value)
+        {
+            if (!Config?.modEnabled == true)
+                return;
+
+            // Only act if respectLockedSlots is enabled (otherwise locks don't affect our counts)
+            if (!Config?.respectLockedSlots == true)
+                return;
+
+            try
+            {
+                // Invalidate cache so locked/unlocked items are recounted
+                ContainerManager.InvalidateCache();
+                
+                FileLog($"[LOCK] Slot lock changed to {value} at {__instance.StackLocation}:{__instance.SlotNumber}");
+                
+                // Refresh recipe tracker
+                RefreshRecipeTracker();
+                
+                // Fire DragAndDropItemChanged to update challenge tracker
+                if (Config?.enableForQuests == true)
+                {
+                    var player = GameManager.Instance?.World?.GetPrimaryPlayer();
+                    if (player != null)
+                    {
+                        var eventField = typeof(EntityPlayerLocal).GetField("DragAndDropItemChanged",
+                            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                        
+                        if (eventField != null)
+                        {
+                            var eventDelegate = eventField.GetValue(player) as Delegate;
+                            eventDelegate?.DynamicInvoke();
+                            FileLog("[LOCK] Fired DragAndDropItemChanged after lock change");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FileLog($"UserLockedSlot_Patch: Exception: {ex.Message}");
+            }
+        }
+    }
+
+    #endregion
+
+    #region Harmony Patches - Trader Purchase Fix
+
+    // ====================================================================================
+    // TRADER PURCHASE FIX
+    // ====================================================================================
+    //
+    // Fixes buying items from traders using currency from nearby containers (drone, etc.)
+    // 
+    // PROBLEM: ItemActionEntryPurchase.OnActivated uses playerInventory.RemoveItem for currency.
+    // This only removes from player bag, not from containers.
+    //
+    // SOLUTION:
+    // 1. Patch CanSwapItems to return true if player + containers have enough currency
+    // 2. Patch RemoveItem to also remove currency from containers if needed
+    //
+    // The RefreshEnabled patch already shows correct currency count via GetItemCount patch.
+    // ====================================================================================
+
+    /// <summary>
+    /// Patch XUiM_PlayerInventory.CanSwapItems to consider containers for currency.
+    /// This allows the purchase to proceed when currency is in containers.
+    /// </summary>
+    [HarmonyPatch(typeof(XUiM_PlayerInventory), nameof(XUiM_PlayerInventory.CanSwapItems))]
+    [HarmonyPriority(Priority.Low)]
+    private static class XUiM_PlayerInventory_CanSwapItems_Patch
+    {
+        public static void Postfix(XUiM_PlayerInventory __instance, ref bool __result, ItemStack _a, ItemStack _b)
+        {
+            // Only process if vanilla said false and we might be able to help
+            if (__result || !Config?.modEnabled == true || !Config?.enableForTrader == true)
+                return;
+
+            // Safety check
+            if (!IsGameReady())
+                return;
+
+            try
+            {
+                // Check if _a is currency (what we're paying)
+                var currencyItem = ItemClass.GetItem(TraderInfo.CurrencyItem, false);
+                if (_a?.itemValue?.type != currencyItem.type)
+                    return;
+
+                // Check if we have enough currency in containers
+                int containerCount = ContainerManager.GetItemCount(Config, currencyItem);
+                int playerCount = __instance.GetItemCount(currencyItem);
+                int totalCurrency = playerCount + containerCount;
+
+                if (totalCurrency >= _a.count)
+                {
+                    // Check if we have space for _b (the item we're buying)
+                    int availableSpace = __instance.CountAvailableSpaceForItem(_b.itemValue);
+                    if (availableSpace >= _b.count)
+                    {
+                        __result = true;
+                        LogDebug($"CanSwapItems: Allowing purchase, currency={totalCurrency}, needed={_a.count}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"Error in CanSwapItems patch: {ex.Message}");
             }
         }
     }
