@@ -560,27 +560,16 @@ public class ProxiCraft : IModApi
             var playerUI = LocalPlayerUI.GetUIForPlayer(player);
             if (playerUI?.xui == null)
                 return;
-
-            Log("[HUD] MarkHudAmmoDirty called");
             
             // The HUD stat bars are children of XUi. Use GetChildrenByType to find them.
             var statBars = playerUI.xui.GetChildrenByType<XUiC_HUDStatBar>();
             if (statBars != null && statBars.Count > 0)
             {
-                int markedCount = 0;
                 foreach (var statBar in statBars)
                 {
-                    if (statBar == null) continue;
-                    
-                    // Mark stat bar as dirty - this will trigger recalculation on next Update
-                    statBar.IsDirty = true;
-                    markedCount++;
+                    if (statBar != null)
+                        statBar.IsDirty = true;
                 }
-                Log($"[HUD] Marked {markedCount} stat bars as dirty for ammo refresh");
-            }
-            else
-            {
-                Log("[HUD] No stat bars found");
             }
         }
         catch (Exception ex)
@@ -1922,8 +1911,6 @@ public class ProxiCraft : IModApi
     {
         public static void Postfix()
         {
-            Log("[SLOT] LootContainer_SlotChanged_Patch fired!");
-            
             // Always invalidate cache when container contents change
             ContainerManager.InvalidateCache();
 
@@ -2780,9 +2767,9 @@ public class ProxiCraft : IModApi
     ///   - We need enough currency in inventory+containers to pay
     ///   - We need space for the purchased item
     ///   
-    /// SELLING: _a = item being sold, _b = currency (dukes) being received
-    ///   - We need the items to sell (vanilla already checked inventory, we just approve if containers have it)
-    ///   - We need space for the currency being received
+    /// NOTE: Selling items FROM containers is not supported - the trader UI only displays
+    /// items that are in the player's inventory. Supporting this would require patching
+    /// the trader UI to show container items, which is a major feature.
     /// </summary>
     [HarmonyPatch(typeof(XUiM_PlayerInventory), nameof(XUiM_PlayerInventory.CanSwapItems))]
     [HarmonyPriority(Priority.Low)]
@@ -2790,38 +2777,25 @@ public class ProxiCraft : IModApi
     {
         public static void Postfix(XUiM_PlayerInventory __instance, ref bool __result, ItemStack _a, ItemStack _b)
         {
-            // Log that we got called
-            Log($"[TRADER] CanSwapItems called: __result={__result}, _a={_a?.itemValue?.ItemClass?.Name}x{_a?.count}, _b={_b?.itemValue?.ItemClass?.Name}x{_b?.count}");
-            
             // Only process if vanilla said false and we might be able to help
             if (__result || !Config?.modEnabled == true || !Config?.enableForTrader == true)
-            {
-                Log($"[TRADER] Early exit: __result={__result}, modEnabled={Config?.modEnabled}, enableForTrader={Config?.enableForTrader}");
                 return;
-            }
 
             // Safety check
             if (!IsGameReady())
-            {
-                Log("[TRADER] Game not ready");
                 return;
-            }
 
             try
             {
                 var currencyItem = ItemClass.GetItem(TraderInfo.CurrencyItem, false);
-                Log($"[TRADER] Currency item type: {currencyItem.type}");
                 
-                // CASE 1: BUYING - _a is currency (what we're paying)
+                // BUYING - _a is currency (what we're paying)
+                // When buying, check if player + containers have enough currency
                 if (_a?.itemValue?.type == currencyItem.type)
                 {
-                    Log("[TRADER] Case: BUYING");
-                    // Check if we have enough currency in containers
                     int containerCount = ContainerManager.GetItemCount(Config, currencyItem);
                     int playerCount = __instance.GetItemCount(currencyItem);
                     int totalCurrency = playerCount + containerCount;
-
-                    Log($"[TRADER] BUY check: containerCount={containerCount}, playerCount={playerCount}, total={totalCurrency}, needed={_a.count}");
 
                     if (totalCurrency >= _a.count)
                     {
@@ -2830,42 +2804,10 @@ public class ProxiCraft : IModApi
                         if (availableSpace >= _b.count)
                         {
                             __result = true;
-                            Log($"[TRADER] CanSwapItems (BUY): Allowing purchase, currency={totalCurrency}, needed={_a.count}");
+                            LogDebug($"CanSwapItems (BUY): Allowing purchase, currency={totalCurrency}, needed={_a.count}");
                         }
                     }
-                    return;
                 }
-                
-                // CASE 2: SELLING - _b is currency (what we're receiving)
-                if (_b?.itemValue?.type == currencyItem.type)
-                {
-                    Log($"[TRADER] Case: SELLING, enableTraderSelling={Config?.enableTraderSelling}");
-                    if (Config?.enableTraderSelling == true)
-                    {
-                        // Check if we have the items to sell in containers
-                        int containerCount = ContainerManager.GetItemCount(Config, _a.itemValue);
-                        int playerCount = __instance.GetItemCount(_a.itemValue);
-                        int totalItems = playerCount + containerCount;
-
-                        Log($"[TRADER] SELL check: containerCount={containerCount}, playerCount={playerCount}, total={totalItems}, needed={_a.count}");
-
-                        if (totalItems >= _a.count)
-                        {
-                            // Check if we have space for _b (the currency we're receiving)
-                            // Currency can stack, so check if we can fit it
-                            int availableSpace = __instance.CountAvailableSpaceForItem(_b.itemValue, limitToOneStack: false);
-                            Log($"[TRADER] Space for currency: {availableSpace}");
-                            if (availableSpace >= _b.count)
-                            {
-                                __result = true;
-                                Log($"[TRADER] CanSwapItems (SELL): Allowing sale, items={totalItems}, needed={_a.count}, space for dukes={availableSpace}");
-                            }
-                        }
-                    }
-                    return;
-                }
-                
-                Log($"[TRADER] No case matched - not a buy or sell?");
             }
             catch (Exception ex)
             {
