@@ -724,13 +724,23 @@ public static class ContainerManager
     /// </summary>
     private static void CountAllDroneItems(World world, Vector3 playerPos, ModConfig config)
     {
+        ProxiCraft.Log("[DRONE] CountAllDroneItems called");
         PerformanceProfiler.StartTimer(PerformanceProfiler.OP_COUNT_DRONES);
         try
         {
             var entities = world.Entities?.list;
-            if (entities == null) return;
+            if (entities == null)
+            {
+                ProxiCraft.Log("[DRONE] No entities list");
+                return;
+            }
 
+            ProxiCraft.Log($"[DRONE] Checking {entities.Count} entities");
             float rangeSquared = config.range > 0f ? config.range * config.range : 0f;
+            int dronesFound = 0;
+            int dronesInRange = 0;
+            int dronesOwned = 0;
+            int itemsCounted = 0;
 
             for (int i = 0; i < entities.Count; i++)
             {
@@ -738,12 +748,17 @@ public static class ContainerManager
                 if (entity == null || !(entity is EntityDrone drone))
                     continue;
 
+                dronesFound++;
+
                 try
                 {
                     // Skip the currently open drone - it's counted via CurrentOpenContainer
                     // (drone storage opens via XUiC_LootContainer which sets CurrentOpenContainer)
                     if (CurrentOpenDrone != null && drone.entityId == CurrentOpenDrone.entityId)
+                    {
+                        ProxiCraft.Log($"[DRONE] Skipping currently open drone {drone.entityId}");
                         continue;
+                    }
 
                     if (rangeSquared > 0f)
                     {
@@ -751,12 +766,20 @@ public static class ContainerManager
                         float dy = playerPos.y - drone.position.y;
                         float dz = playerPos.z - drone.position.z;
                         if (dx * dx + dy * dy + dz * dz >= rangeSquared)
+                        {
+                            ProxiCraft.Log($"[DRONE] Drone {drone.entityId} out of range");
                             continue;
+                        }
                     }
+                    dronesInRange++;
 
                     // Only include drones owned by the local player
                     if (!drone.LocalPlayerIsOwner())
+                    {
+                        ProxiCraft.Log($"[DRONE] Drone {drone.entityId} not owned by local player");
                         continue;
+                    }
+                    dronesOwned++;
 
                     // Count from lootContainer ONLY (not bag - they share the same items array!)
                     // See EntityDrone line 2230: base.lootContainer.items = bag.GetSlots();
@@ -776,7 +799,10 @@ public static class ContainerManager
 
                             var stack = items[j];
                             if (stack?.itemValue != null && !stack.IsEmpty())
+                            {
+                                itemsCounted += stack.count;
                                 AddToCountCache(stack.itemValue.type, stack.count);
+                            }
                         }
                     }
                 }
@@ -785,6 +811,8 @@ public static class ContainerManager
                     ProxiCraft.LogDebug($"Error counting drone items: {ex.Message}");
                 }
             }
+            
+            ProxiCraft.Log($"[DRONE] Summary: found={dronesFound}, inRange={dronesInRange}, owned={dronesOwned}, itemsCounted={itemsCounted}");
         }
         finally
         {
