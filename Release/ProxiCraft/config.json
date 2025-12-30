@@ -5,7 +5,7 @@
   "isDebug": false,
   "verboseHealthCheck": false,
 
-  "_rangeNote": "How far away (in blocks) to search for containers. 15 = nearby room, 30 = whole building, -1 = everywhere you can see",
+  "_rangeNote": "How far away (in blocks) to search for containers. 15 = same room, 30 = small building, -1 = everywhere you can see",
   "range": 15,
 
   "_storageSourcesNote": "Which container types to pull items from",
