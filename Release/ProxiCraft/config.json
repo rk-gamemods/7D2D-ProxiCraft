@@ -1,24 +1,21 @@
 {
-  "_comment": "ProxiCraft Configuration - See README for full documentation",
+  "_comment": "ProxiCraft Configuration - Edit these settings to customize the mod",
 
   "modEnabled": true,
   "isDebug": false,
   "verboseHealthCheck": false,
 
-  "_rangeNote1": "Range in blocks. 15=same room, 30=building, 50=compound.",
-  "_rangeNote2": "-1=unlimited BUT limited by game's chunk loading (~12 chunks = ~192 blocks by default).",
-  "_rangeNote3": "Chunk loading controlled by: Video>View Distance (client) or ServerMaxAllowedViewDistance (server).",
-  "_rangeNote4": "Setting range > chunk loading distance has no benefit - unloaded containers aren't in memory.",
+  "_rangeNote": "How far away (in blocks) to search for containers. 15 = nearby room, 30 = whole building, -1 = everywhere you can see",
   "range": 15,
 
-  "_storageSourcesNote": "STABLE - What containers to search for items. These only affect WHERE items come from, not HOW they're used.",
+  "_storageSourcesNote": "Which container types to pull items from",
   "pullFromVehicles": true,
   "pullFromDrones": true,
   "pullFromDewCollectors": true,
   "pullFromWorkstationOutputs": true,
   "allowLockedContainers": true,
 
-  "_stableFeaturesNote": "STABLE - Core features using simple postfix patches. Very unlikely to break on game updates.",
+  "_coreFeaturesNote": "Main features - what actions can use items from nearby containers",
   "enableForCrafting": true,
   "enableForQuests": true,
   "enableForRepairAndUpgrade": true,
@@ -26,13 +23,13 @@
   "enableForItemRepair": true,
   "enableForPainting": true,
 
-  "_transpilerFeaturesNote": "LESS STABLE - Features using transpiler patches. May need updates when game code changes. The mod will auto-detect and warn if these break.",
+  "_reloadRefuelNote": "Reload and refuel features - may need updates after major game patches",
   "enableForReload": true,
   "enableForRefuel": true,
   "enableForTrader": true,
   "enableForGeneratorRefuel": true,
 
-  "_newFeaturesNote": "NEW - Additional stable features using simple postfix patches.",
+  "_uiFeaturesNote": "Display features - show container items in the game UI",
   "enableHudAmmoCounter": true,
   "enableRecipeTrackerUpdates": true,
   "respectLockedSlots": true
