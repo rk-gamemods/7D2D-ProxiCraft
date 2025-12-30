@@ -189,6 +189,38 @@ public static class ContainerManager
     }
 
     /// <summary>
+    /// Triggers a UI refresh for the open workstation's output grid.
+    /// Called after removing items from CurrentOpenWorkstation.Output.
+    /// 
+    /// This may be redundant with vanilla's natural refresh cycle, but ensures
+    /// the UI updates immediately. If profiling shows this as a performance issue,
+    /// we can remove this call - vanilla's UpdateBackend fires on craft completion anyway.
+    /// </summary>
+    private static void TriggerWorkstationOutputRefresh()
+    {
+        try
+        {
+            var player = GameManager.Instance?.World?.GetPrimaryPlayer();
+            if (player == null) return;
+            
+            var xui = LocalPlayerUI.GetUIForPlayer(player)?.xui;
+            if (xui == null) return;
+            
+            // Use the convenient currentWorkstationOutputGrid property
+            var outputGrid = xui.currentWorkstationOutputGrid;
+            if (outputGrid != null)
+            {
+                outputGrid.IsDirty = true;
+                ProxiCraft.LogDebug("Marked workstation output grid as dirty");
+            }
+        }
+        catch (Exception ex)
+        {
+            ProxiCraft.LogWarning($"Error triggering workstation output refresh: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Clears all cached storage references. Call when starting a new game.
     /// </summary>
     public static void ClearCache()
@@ -1162,6 +1194,14 @@ public static class ContainerManager
     /// <summary>
     /// Removes items from storage containers.
     /// Respects locked slots when config.respectLockedSlots is true.
+    /// 
+    /// ORDER OF OPERATIONS (critical for sync - see RESEARCH_NOTES.md):
+    /// 1. Remove from CurrentOpenWorkstation.Output FIRST (if open and has items)
+    /// 2. Then iterate _currentStorageDict for other containers
+    /// 3. Skip the open workstation in dict iteration (avoid double-removal)
+    /// 4. Call SetModified() after modification
+    /// 5. Trigger UI refresh via UpdateBackend
+    /// 6. InvalidateCache() after all removals
     /// </summary>
     /// <param name="config">Mod configuration</param>
     /// <param name="item">The item type to remove</param>
@@ -1174,10 +1214,70 @@ public static class ContainerManager
 
         int remaining = count;
         int removed = 0;
+        bool handledOpenWorkstation = false;
 
         try
         {
             RefreshStorages(config);
+            
+            // ====================================================================================
+            // STEP 1: Handle CurrentOpenWorkstation.Output FIRST
+            // ====================================================================================
+            // When a workstation is open, we need to remove from its live Output reference
+            // before iterating the storage dict. This ensures the UI sees the removal immediately.
+            // We track this with a flag to skip the same workstation in the dict iteration.
+            //
+            // NOTE: This may be redundant with vanilla's UpdateBackend refresh, but we call it
+            // explicitly to ensure UI updates. If profiling shows this is a performance issue,
+            // we can revisit. See plan discussion in chat history.
+            // ====================================================================================
+            if (config.pullFromWorkstationOutputs && CurrentOpenWorkstation != null && remaining > 0)
+            {
+                var output = CurrentOpenWorkstation.Output;
+                if (output != null)
+                {
+                    // Check range to the open workstation
+                    var workstationPos = CurrentOpenWorkstation.ToWorldPos();
+                    if (IsInRange(config, workstationPos))
+                    {
+                        for (int i = 0; i < output.Length && remaining > 0; i++)
+                        {
+                            if (output[i]?.itemValue?.type != item.type)
+                                continue;
+
+                            int toRemove = Math.Min(remaining, output[i].count);
+
+                            ProxiCraft.LogDebug($"Removing {toRemove}/{remaining} {item.ItemClass?.GetItemName() ?? "unknown"} from open workstation output");
+
+                            // Modify data FIRST (before any events/UI updates)
+                            if (output[i].count <= toRemove)
+                            {
+                                output[i].Clear();
+                            }
+                            else
+                            {
+                                output[i].count -= toRemove;
+                            }
+
+                            remaining -= toRemove;
+                            removed += toRemove;
+                        }
+
+                        // If we removed anything, sync and refresh UI
+                        if (removed > 0)
+                        {
+                            // Mark as modified for persistence/network sync
+                            CurrentOpenWorkstation.SetModified();
+                            
+                            // Trigger UI refresh - find the output grid and update it
+                            // This may be redundant with vanilla's natural refresh, but ensures correctness
+                            TriggerWorkstationOutputRefresh();
+                            
+                            handledOpenWorkstation = true;
+                        }
+                    }
+                }
+            }
 
             foreach (var kvp in _currentStorageDict)
             {
@@ -1345,6 +1445,14 @@ public static class ContainerManager
                     else if (kvp.Value is StorageSourceInfo sourceInfo)
                     {
                         // Handle dew collectors and workstation outputs via StorageSourceInfo wrapper
+                        
+                        // Skip if this is the open workstation we already handled above
+                        if (handledOpenWorkstation && sourceInfo.TileEntity == CurrentOpenWorkstation)
+                        {
+                            ProxiCraft.LogDebug($"Skipping {sourceInfo.SourceType} - already handled as open workstation");
+                            continue;
+                        }
+                        
                         var slots = sourceInfo.Items;
                         if (slots == null) continue;
 
