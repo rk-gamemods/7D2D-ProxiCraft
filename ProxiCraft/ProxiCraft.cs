@@ -939,6 +939,44 @@ public class ProxiCraft : IModApi
     }
 
     /// <summary>
+    /// DIRECT Postfix patch on XUiM_PlayerInventory.GetItemCount(int)
+    /// This overload is used by the radial menu (ItemActionAttack.SetupRadial) to check ammo counts.
+    /// Without this patch, radial menu shows ammo as greyed out even when available in containers.
+    /// </summary>
+    [HarmonyPatch(typeof(XUiM_PlayerInventory), nameof(XUiM_PlayerInventory.GetItemCount), new Type[] { typeof(int) })]
+    [HarmonyPriority(Priority.Low)]
+    private static class XUiM_PlayerInventory_GetItemCountInt_Patch
+    {
+        public static void Postfix(XUiM_PlayerInventory __instance, ref int __result, int _itemId)
+        {
+            if (!Config?.modEnabled == true || _itemId <= 0)
+                return;
+
+            // Safety check - don't run if game state isn't ready
+            if (!IsGameReady())
+                return;
+
+            try
+            {
+                int containerCount = ContainerManager.GetItemCount(Config, _itemId);
+                if (containerCount > 0)
+                {
+                    int oldResult = __result;
+                    __result = AdaptivePatching.SafeAddCount(__result, containerCount);
+                    
+                    // Get item name for debug logging
+                    string itemName = ItemClass.GetForId(_itemId)?.GetItemName() ?? $"ID:{_itemId}";
+                    LogDebug($"GetItemCount(int) for {itemName}: {oldResult} + {containerCount} containers = {__result}");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"Error in GetItemCount(int) patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
     /// Patch ingredient entry to show correct item counts including containers.
     /// BACKUP: This Transpiler is a backup in case GetItemCount isn't called.
     ///
@@ -2358,6 +2396,222 @@ public class ProxiCraft : IModApi
                 LogWarning($"Error in decreaseAmmo patch: {ex.Message}");
                 return true; // Let original handle it on error
             }
+        }
+    }
+
+    #endregion
+
+    #region Harmony Patches - Block Upgrade Support
+
+    // ====================================================================================
+    // BLOCK UPGRADE SUPPORT
+    // ====================================================================================
+    //
+    // Allows upgrading blocks using materials from nearby containers.
+    // Uses POSTFIX patches to extend vanilla behavior:
+    // 1. CanRemoveRequiredResource - If vanilla says NO, check if containers have enough
+    // 2. RemoveRequiredResource - If vanilla fails, remove from containers
+    //
+    // LESSONS LEARNED:
+    // - Prefer POSTFIX over TRANSPILER for stability
+    // - Let vanilla try first, then extend if needed
+    // - Don't replace entire methods unless absolutely necessary
+    //
+    // Reference: BeyondStorage2's ItemActionRepair_Upgrade_Patches.cs
+    // ====================================================================================
+
+    /// <summary>
+    /// Patch ItemActionRepair.CanRemoveRequiredResource to check containers for upgrade materials.
+    /// Uses POSTFIX to add container check if vanilla returns false.
+    /// </summary>
+    [HarmonyPatch(typeof(ItemActionRepair), "CanRemoveRequiredResource")]
+    [HarmonyPriority(Priority.Low)]
+    private static class ItemActionRepair_CanRemoveRequiredResource_Patch
+    {
+        public static void Postfix(ItemActionRepair __instance, ref bool __result, ItemInventoryData data, BlockValue blockValue)
+        {
+            // If vanilla succeeded or mod disabled, no need to intervene
+            if (__result || !Config?.modEnabled == true || !Config?.enableForRepairAndUpgrade == true)
+                return;
+
+            try
+            {
+                Block block = blockValue.Block;
+                if (block == null)
+                    return;
+
+                // Get upgrade item name (mirrors vanilla logic)
+                string upgradeItemName = GetUpgradeItemName(__instance, block);
+                if (string.IsNullOrEmpty(upgradeItemName))
+                    return;
+
+                // Get required count from block properties
+                if (!int.TryParse(block.Properties.Values[Block.PropUpgradeBlockClassItemCount], out int requiredCount))
+                    return;
+
+                // Get item value for the upgrade material
+                ItemValue itemValue = ItemClass.GetItem(upgradeItemName);
+                if (itemValue == null || itemValue.IsEmpty())
+                    return;
+
+                // Check how much player has (inventory + bag)
+                int playerCount = 0;
+                if (data?.holdingEntity != null)
+                {
+                    playerCount += data.holdingEntity.inventory?.GetItemCount(itemValue) ?? 0;
+                    playerCount += data.holdingEntity.bag?.GetItemCount(itemValue) ?? 0;
+                }
+
+                // Check containers
+                int containerCount = ContainerManager.GetItemCount(Config, itemValue);
+                int totalAvailable = playerCount + containerCount;
+
+                if (totalAvailable >= requiredCount)
+                {
+                    __result = true;
+                    LogDebug($"CanRemoveRequiredResource: {upgradeItemName} x{requiredCount}, player={playerCount}, containers={containerCount} -> allowed");
+                }
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"Error in CanRemoveRequiredResource patch: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Gets the upgrade item name from a block, mirroring vanilla's GetUpgradeItemName logic.
+        /// </summary>
+        private static string GetUpgradeItemName(ItemActionRepair instance, Block block)
+        {
+            // Check UpgradeBlock.Item property first
+            if (block.Properties.Values.TryGetValue("UpgradeBlock.Item", out string upgradeItem) &&
+                !string.IsNullOrEmpty(upgradeItem))
+            {
+                return upgradeItem;
+            }
+
+            // Fall back to RepairItems if available
+            if (block.RepairItems != null && block.RepairItems.Count > 0)
+            {
+                return block.RepairItems[0].ItemName;
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Patch ItemActionRepair.RemoveRequiredResource to remove upgrade materials from containers.
+    /// Uses POSTFIX to remove from containers if vanilla fails to remove everything from player.
+    /// 
+    /// IMPORTANT: Vanilla returns false if it can't remove ALL items from one source.
+    /// It tries inventory first, then bag - all-or-nothing from each.
+    /// Our postfix kicks in when vanilla fails, meaning player doesn't have enough in either source.
+    /// </summary>
+    [HarmonyPatch(typeof(ItemActionRepair), "RemoveRequiredResource")]
+    [HarmonyPriority(Priority.Low)]
+    private static class ItemActionRepair_RemoveRequiredResource_Patch
+    {
+        public static void Postfix(ItemActionRepair __instance, ref bool __result, ItemInventoryData data, BlockValue blockValue)
+        {
+            // If vanilla succeeded or mod disabled, no need to intervene
+            if (__result || !Config?.modEnabled == true || !Config?.enableForRepairAndUpgrade == true)
+                return;
+
+            try
+            {
+                Block block = blockValue.Block;
+                if (block == null)
+                    return;
+
+                // Get upgrade item name (same logic as CanRemoveRequiredResource)
+                string upgradeItemName = GetUpgradeItemName(block);
+                if (string.IsNullOrEmpty(upgradeItemName))
+                    return;
+
+                // Get required count from block properties
+                if (!int.TryParse(block.Properties.Values[Block.PropUpgradeBlockClassItemCount], out int requiredCount))
+                    return;
+
+                // Get item value for the upgrade material
+                ItemValue itemValue = ItemClass.GetItem(upgradeItemName);
+                if (itemValue == null || itemValue.IsEmpty())
+                    return;
+
+                // Calculate how much the player has across both sources
+                int inventoryCount = data?.holdingEntity?.inventory?.GetItemCount(itemValue) ?? 0;
+                int bagCount = data?.holdingEntity?.bag?.GetItemCount(itemValue) ?? 0;
+                int playerTotal = inventoryCount + bagCount;
+
+                // Check containers
+                int containerCount = ContainerManager.GetItemCount(Config, itemValue);
+                int totalAvailable = playerTotal + containerCount;
+
+                // If we don't have enough total, bail
+                if (totalAvailable < requiredCount)
+                    return;
+
+                // Remove in order: inventory -> bag -> containers
+                int remaining = requiredCount;
+
+                // Remove from inventory first
+                if (remaining > 0 && data?.holdingEntity?.inventory != null)
+                {
+                    int removed = data.holdingEntity.inventory.DecItem(itemValue, remaining);
+                    remaining -= removed;
+                }
+
+                // Then bag
+                if (remaining > 0 && data?.holdingEntity?.bag != null)
+                {
+                    int removed = data.holdingEntity.bag.DecItem(itemValue, remaining);
+                    remaining -= removed;
+                }
+
+                // Finally containers
+                if (remaining > 0)
+                {
+                    int removed = ContainerManager.RemoveItems(Config, itemValue, remaining);
+                    remaining -= removed;
+                    LogDebug($"RemoveRequiredResource: Removed {removed} {upgradeItemName} from containers (needed {requiredCount})");
+                }
+
+                // Show UI harvesting indicator (like vanilla does)
+                if (remaining <= 0)
+                {
+                    var entityPlayerLocal = data?.holdingEntity as EntityPlayerLocal;
+                    if (entityPlayerLocal != null && requiredCount != 0)
+                    {
+                        entityPlayerLocal.AddUIHarvestingItem(new ItemStack(itemValue, -requiredCount));
+                    }
+                    __result = true;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"Error in RemoveRequiredResource patch: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Gets the upgrade item name from a block, mirroring vanilla's GetUpgradeItemName logic.
+        /// </summary>
+        private static string GetUpgradeItemName(Block block)
+        {
+            // Check UpgradeBlock.Item property first
+            if (block.Properties.Values.TryGetValue("UpgradeBlock.Item", out string upgradeItem) &&
+                !string.IsNullOrEmpty(upgradeItem))
+            {
+                return upgradeItem;
+            }
+
+            // Fall back to RepairItems if available
+            if (block.RepairItems != null && block.RepairItems.Count > 0)
+            {
+                return block.RepairItems[0].ItemName;
+            }
+
+            return null;
         }
     }
 

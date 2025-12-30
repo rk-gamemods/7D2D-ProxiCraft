@@ -634,6 +634,58 @@ public static class ContainerManager
     }
 
     /// <summary>
+    /// Overload that takes int itemId directly (used by radial menu via XUiM_PlayerInventory.GetItemCount(int)).
+    /// Uses the same cache as GetItemCount(ItemValue) since the cache is keyed by item type (int).
+    /// </summary>
+    /// <param name="config">Mod configuration</param>
+    /// <param name="itemId">The item type ID to count</param>
+    /// <returns>Count of matching items in nearby containers</returns>
+    public static int GetItemCount(ModConfig config, int itemId)
+    {
+        if (!config.modEnabled || itemId <= 0)
+            return 0;
+
+        PerformanceProfiler.StartTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
+
+        try
+        {
+            float currentTime = Time.time;
+            int currentFrame = Time.frameCount;
+            
+            // FAST PATH: Same frame as last cache build - always use cache
+            if (_itemCountCacheValid && currentFrame == _lastItemCountFrame)
+            {
+                PerformanceProfiler.RecordCacheHit(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                return _itemCountCache.TryGetValue(itemId, out int frameCount) ? frameCount : 0;
+            }
+            
+            // Check if we have a valid cached count (time-based expiry)
+            if (_itemCountCacheValid && 
+                (currentTime - _lastItemCountTime) < ITEM_COUNT_CACHE_DURATION &&
+                _itemCountCache.TryGetValue(itemId, out int cachedCount))
+            {
+                PerformanceProfiler.RecordCacheHit(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                return cachedCount;
+            }
+
+            // Cache miss or expired - rebuild the entire cache
+            PerformanceProfiler.RecordCacheMiss(PerformanceProfiler.OP_GET_ITEM_COUNT);
+            RebuildItemCountCache(config);
+            
+            PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
+            return _itemCountCache.TryGetValue(itemId, out int count) ? count : 0;
+        }
+        catch (Exception ex)
+        {
+            PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
+            ProxiCraft.LogError($"Error counting items by ID: {ex.Message}");
+            return 0;
+        }
+    }
+
+    /// <summary>
     /// Rebuilds the item count cache by scanning all storage sources once.
     /// This is much more efficient than scanning per-item-type.
     /// </summary>

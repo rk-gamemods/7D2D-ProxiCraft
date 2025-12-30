@@ -315,9 +315,21 @@ public static class StartupHealthCheck
             return;
         }
 
-        // Block repair uses XUiM_PlayerInventory which we already check in crafting
-        AddResult("Repair", "Block repair/upgrade", HealthStatus.OK,
-            "Uses same inventory patches as crafting");
+        // Check ItemActionRepair methods for block upgrades
+        var canRemoveMethod = AccessTools.Method(typeof(ItemActionRepair), "CanRemoveRequiredResource");
+        var removeMethod = AccessTools.Method(typeof(ItemActionRepair), "RemoveRequiredResource");
+
+        if (canRemoveMethod != null && removeMethod != null)
+        {
+            AddResult("Repair", "Block repair/upgrade", HealthStatus.OK,
+                "ItemActionRepair methods validated");
+        }
+        else
+        {
+            AddResult("Repair", "Block repair/upgrade", HealthStatus.Degraded,
+                "Some upgrade methods not found",
+                $"CanRemoveRequiredResource: {(canRemoveMethod != null ? "OK" : "MISSING")}, RemoveRequiredResource: {(removeMethod != null ? "OK" : "MISSING")}");
+        }
     }
 
     private static void CheckNewFeatures(ModConfig config)
@@ -635,7 +647,8 @@ public static class StartupHealthCheck
         var patchesToVerify = new List<(Type targetType, string methodName, Type[] paramTypes, string patchType, string featureId)>
         {
             // Core inventory patches (critical for most features)
-            (typeof(XUiM_PlayerInventory), "GetItemCount", new[] { typeof(ItemValue) }, "Postfix", "Core.GetItemCount"),
+            (typeof(XUiM_PlayerInventory), "GetItemCount", new[] { typeof(ItemValue) }, "Postfix", "Core.GetItemCount.ItemValue"),
+            (typeof(XUiM_PlayerInventory), "GetItemCount", new[] { typeof(int) }, "Postfix", "Core.GetItemCount.Int"),
             (typeof(XUiM_PlayerInventory), "HasItems", null, "Postfix", "Core.HasItems"),
             (typeof(XUiM_PlayerInventory), "RemoveItems", null, "Postfix", "Core.RemoveItems"),
 
@@ -649,6 +662,10 @@ public static class StartupHealthCheck
             // Painting
             (typeof(ItemActionTextureBlock), "checkAmmo", null, "Prefix", "Painting.checkAmmo"),
             (typeof(ItemActionTextureBlock), "decreaseAmmo", null, "Prefix", "Painting.decreaseAmmo"),
+            
+            // Block upgrades
+            (typeof(ItemActionRepair), "CanRemoveRequiredResource", null, "Postfix", "BlockUpgrade.CanRemove"),
+            (typeof(ItemActionRepair), "RemoveRequiredResource", null, "Postfix", "BlockUpgrade.Remove"),
         };
 
         int verified = 0;
