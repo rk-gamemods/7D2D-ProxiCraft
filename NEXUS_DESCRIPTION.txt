@@ -138,7 +138,11 @@ Edit [b]config.json[/b] in the mod folder to change settings:
   "enableForReload": true,
   "enableForRefuel": true,
   "enableForTrader": true,
-  "enableForGeneratorRefuel": true
+  "enableForGeneratorRefuel": true,
+  
+  "enableHudAmmoCounter": true,
+  "enableRecipeTrackerUpdates": true,
+  "respectLockedSlots": true
 }
 [/code]
 
@@ -168,6 +172,13 @@ Edit [b]config.json[/b] in the mod folder to change settings:
 [*][b]enableForRefuel[/b] - Pull gas cans from containers when refueling vehicles
 [*][b]enableForTrader[/b] - Use dukes from containers when buying from traders
 [*][b]enableForGeneratorRefuel[/b] - Refuel generators from nearby storage
+[/list]
+
+[b]Display Features[/b]
+[list]
+[*][b]enableHudAmmoCounter[/b] - Show container ammo count in the weapon's HUD stat bar
+[*][b]enableRecipeTrackerUpdates[/b] - Update recipe tracker ingredient counts in real-time from containers
+[*][b]respectLockedSlots[/b] - Skip items in user-locked container slots (items you've locked won't be used)
 [/list]
 
 [b]Debug[/b]
@@ -272,19 +283,6 @@ If you find a mod conflict, please report it so we can update this list.
 [/list]
 
 [b]v1.0.0 - Initial Public Release[/b]
-[list]
-[*]Core crafting from nearby containers
-[*]Weapon reload from container ammo
-[*]Vehicle and generator refuel from containers
-[*]Block repair from containers
-[*]Trader purchases using stored dukes
-[*]Lockpicking with stored lockpicks
-[*]Painting with stored paint
-[*]Item repair with stored repair kits
-[*]Challenge tracker integration
-[*]Startup health check system
-[*]Console diagnostics (pc commands)
-[/list]
 
 [line]
 
