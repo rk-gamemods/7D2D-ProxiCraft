@@ -343,6 +343,9 @@ public static class MultiplayerModTracker
             ProxiCraft.Log("     use that mod on your client instead - don't mix container mods.");
             ProxiCraft.Log("======================================================================");
 
+            // Open the F1 console so the user sees the warning
+            OpenConsoleWithWarning();
+
             return true;
         }
         catch
@@ -370,6 +373,30 @@ public static class MultiplayerModTracker
     /// Gets whether mod is unlocked for multiplayer.
     /// </summary>
     public static bool IsMultiplayerUnlocked => _multiplayerUnlocked;
+
+    /// <summary>
+    /// Opens the F1 console window so the user sees the multiplayer warning.
+    /// </summary>
+    private static void OpenConsoleWithWarning()
+    {
+        try
+        {
+            var player = GameManager.Instance?.World?.GetPrimaryPlayer();
+            if (player == null)
+                return;
+
+            var playerUI = LocalPlayerUI.GetUIForPlayer(player);
+            if (playerUI?.nguiWindowManager?.windowManager == null)
+                return;
+
+            // Open the console window (non-modal so gameplay isn't blocked)
+            playerUI.nguiWindowManager.windowManager.OpenIfNotOpen(GUIWindowConsole.ID, _bModal: false);
+        }
+        catch
+        {
+            // Silent fail - opening console is best-effort
+        }
+    }
 }
 
 /// <summary>
