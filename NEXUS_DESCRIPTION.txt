@@ -262,11 +262,14 @@ If you find a mod conflict, please report it so we can update this list.
 [*][b]Fuzzy Config Matching[/b] - Typos in config keys like "workstaion" auto-correct to "Workstation"
 [*][b]Multiplayer Safety Lock[/b] - Mod auto-disables on servers without ProxiCraft to prevent CTD
 [*][b]Server Detection Notice[/b] - Warns if connecting to incompatible server
+[*]Added storagePriority section to shipped config.json
 [/list]
 
 [u]Bug Fixes:[/u]
 [list]
-[*][b]Fixed[/b]: Vehicle repair with full inventory could lose repair kits - now checks inventory space before removing from storage
+[*]Vehicle repair with full inventory could lose repair kits - now checks inventory space before removing from storage
+[*]Fixed duplicate profiler timer calls for Vehicle/Drone counting
+[*]Removed obsolete enableTraderSelling from pc config list output
 [/list]
 
 [b]v1.2.0 - Features & Bug Fixes[/b]
@@ -279,11 +282,11 @@ If you find a mod conflict, please report it so we can update this list.
 
 [u]Bug Fixes:[/u]
 [list]
-[*][b]Fixed[/b]: Radial menu reload - ammo greyed out when only in nearby containers [i](reported by falkon311)[/i]
-[*][b]Fixed[/b]: R-key reload blocked when ammo only in containers [i](reported by falkon311)[/i]
-[*][b]Fixed[/b]: Block upgrades not consuming materials from nearby containers [i](reported by falkon311)[/i]
-[*][b]Fixed[/b]: Workstation output items counted but not consumed - crafting exploit [i](reported by Kaizlin)[/i]
-[*][b]Fixed[/b]: "Take Like" button taking all container contents instead of matching items [i](reported by Kaizlin)[/i]
+[*]Radial menu reload - ammo greyed out when only in nearby containers [i](reported by falkon311)[/i]
+[*]R-key reload blocked when ammo only in containers [i](reported by falkon311)[/i]
+[*]Block upgrades not consuming materials from nearby containers [i](reported by falkon311)[/i]
+[*]Workstation output items counted but not consumed - crafting exploit [i](reported by Kaizlin)[/i]
+[*]"Take Like" button taking all container contents instead of matching items [i](reported by Kaizlin)[/i]
 [/list]
 
 [b]v1.1.0 - Expanded Storage Sources[/b]

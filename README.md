@@ -453,25 +453,28 @@ Outputs:
 
 ### v1.2.1 - Storage Priority & Multiplayer Safety
 **New Features:**
-- **New**: Configurable storage priority - control which storage types are used first (Drone → Dew Collector → Workstation → Container → Vehicle)
-- **New**: Fuzzy config key matching - typos like "workstaion" auto-correct to "Workstation"
-- **New**: Multiplayer safety lock - mod auto-disables on servers without ProxiCraft to prevent CTD
-- **New**: Server detection notice - warns if connecting to incompatible server
+- Configurable storage priority - control which storage types are used first (Drone → Dew Collector → Workstation → Container → Vehicle)
+- Fuzzy config key matching - typos like "workstaion" auto-correct to "Workstation"
+- Multiplayer safety lock - mod auto-disables on servers without ProxiCraft to prevent CTD
+- Server detection notice - warns if connecting to incompatible server
+- Added `storagePriority` section to shipped config.json
 
 **Bug Fixes:**
-- **Fixed**: Vehicle repair with full inventory could lose repair kits - now checks inventory space before removing from storage
+- Vehicle repair with full inventory could lose repair kits - now checks inventory space before removing from storage
+- Fixed duplicate profiler timer calls for Vehicle/Drone counting (inflated call counts)
+- Removed obsolete `enableTraderSelling` from `pc config list` output
 
 ### v1.2.0 - Features & Bug Fixes
 **New Features:**
-- **New**: HUD ammo counter - shows container ammo in weapon stat bar
-- **New**: Locked slot respect - items in user-locked container slots excluded from all operations
+- HUD ammo counter - shows container ammo in weapon stat bar
+- Locked slot respect - items in user-locked container slots excluded from all operations
 
 **Bug Fixes:**
-- **Fixed**: Radial menu reload - ammo greyed out when only in nearby containers *(reported by falkon311)*
-- **Fixed**: R-key reload blocked when ammo only in containers *(reported by falkon311)*
-- **Fixed**: Block upgrades not consuming materials from nearby containers *(reported by falkon311)*
-- **Fixed**: Workstation output items counted but not consumed - crafting exploit *(reported by Kaizlin)*
-- **Fixed**: "Take Like" button taking all container contents instead of matching items *(reported by Kaizlin)*
+- Radial menu reload - ammo greyed out when only in nearby containers *(reported by falkon311)*
+- R-key reload blocked when ammo only in containers *(reported by falkon311)*
+- Block upgrades not consuming materials from nearby containers *(reported by falkon311)*
+- Workstation output items counted but not consumed - crafting exploit *(reported by Kaizlin)*
+- "Take Like" button taking all container contents instead of matching items *(reported by Kaizlin)*
 
 ### v1.1.0 - Expanded Storage Sources
 - Vehicle storage support - minibike, motorcycle, 4x4, gyrocopter
