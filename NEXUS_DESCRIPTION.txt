@@ -254,6 +254,21 @@ If you find a mod conflict, please report it so we can update this list.
 
 [size=4][b]Changelog[/b][/size]
 
+[b]v1.2.1 - Storage Priority & Multiplayer Safety[/b]
+
+[u]New Features:[/u]
+[list]
+[*][b]Configurable Storage Priority[/b] - Control which storage types are used first (Drone → Dew Collector → Workstation → Container → Vehicle)
+[*][b]Fuzzy Config Matching[/b] - Typos in config keys like "workstaion" auto-correct to "Workstation"
+[*][b]Multiplayer Safety Lock[/b] - Mod auto-disables on servers without ProxiCraft to prevent CTD
+[*][b]Server Detection Notice[/b] - Warns if connecting to incompatible server
+[/list]
+
+[u]Bug Fixes:[/u]
+[list]
+[*][b]Fixed[/b]: Vehicle repair with full inventory could lose repair kits - now checks inventory space before removing from storage
+[/list]
+
 [b]v1.2.0 - Features & Bug Fixes[/b]
 
 [u]New Features:[/u]
@@ -288,7 +303,25 @@ If you find a mod conflict, please report it so we can update this list.
 
 [size=4][b]Multiplayer[/b][/size]
 
-Not tested in multiplayer. The mod may work, but shared containers could cause problems if two players craft from the same container at the same time.
+[b]IMPORTANT:[/b] Install ProxiCraft on BOTH client AND server for multiplayer games.
+
+[u]If only the client has ProxiCraft:[/u]
+[list]
+[*]Server doesn't know about items in containers
+[*]Crafting/reloading may fail or cause crashes (CTD)
+[*]Client and server state will desync
+[/list]
+
+[u]Server Detection (v1.2.1+):[/u]
+ProxiCraft automatically detects if the server doesn't have it installed and shows a notice in the console with recommendations.
+
+[u]Mod Conflicts in Multiplayer:[/u]
+Do NOT mix different container mods between client and server:
+[list]
+[*]Server runs Beyond Storage 2? Use BS2 on client (not ProxiCraft)
+[*]Server runs ProxiCraft? Use ProxiCraft on client (not BS2)
+[*]Mixing container mods will cause crashes
+[/list]
 
 [line]
 

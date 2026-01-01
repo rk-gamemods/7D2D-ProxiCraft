@@ -26,6 +26,7 @@
     <Compile Include="ProxiCraft\ProxiCraft.cs" />
     <Compile Include="ProxiCraft\ContainerManager.cs" />
     <Compile Include="ProxiCraft\ModConfig.cs" />
+    <Compile Include="ProxiCraft\StoragePriority.cs" />
     <Compile Include="ProxiCraft\NetPackagePCLock.cs" />
     <Compile Include="ProxiCraft\ModCompatibility.cs" />
     <Compile Include="ProxiCraft\SafePatcher.cs" />

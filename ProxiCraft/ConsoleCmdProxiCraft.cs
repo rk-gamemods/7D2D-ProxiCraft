@@ -191,6 +191,25 @@ Examples:
         Output("=== ProxiCraft Status ===");
         Output($"  Mod Version: {ProxiCraft.MOD_VERSION}");
         Output($"  Enabled: {(config?.modEnabled == true ? "YES" : "NO")}");
+        
+        // Show multiplayer safety lock status
+        if (MultiplayerModTracker.IsMultiplayerSession)
+        {
+            if (MultiplayerModTracker.IsMultiplayerUnlocked)
+            {
+                Output($"  Multiplayer: UNLOCKED (server confirmed)");
+            }
+            else if (MultiplayerModTracker.IsWaitingForServer)
+            {
+                OutputWarning($"  Multiplayer: LOCKED (waiting for server...)");
+            }
+            else
+            {
+                var reason = MultiplayerModTracker.GetLockReason();
+                OutputWarning($"  Multiplayer: LOCKED - {reason ?? "unknown"}");
+            }
+        }
+        
         Output($"  Debug Mode: {(config?.isDebug == true ? "ON" : "OFF")}");
         Output($"  Verbose Health Check: {(config?.verboseHealthCheck == true ? "ON" : "OFF")}");
         Output("");

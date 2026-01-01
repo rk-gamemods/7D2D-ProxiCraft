@@ -16,19 +16,22 @@ public class EntityStorage
     public Entity Entity { get; }
     public Bag Bag { get; }
     public ITileEntityLootable LootContainer { get; }
+    public StorageType Type { get; }
     
-    public EntityStorage(Entity entity, Bag bag)
+    public EntityStorage(Entity entity, Bag bag, StorageType type)
     {
         Entity = entity;
         Bag = bag;
         LootContainer = null;
+        Type = type;
     }
     
-    public EntityStorage(Entity entity, ITileEntityLootable lootContainer)
+    public EntityStorage(Entity entity, ITileEntityLootable lootContainer, StorageType type)
     {
         Entity = entity;
         Bag = null;
         LootContainer = lootContainer;
+        Type = type;
     }
     
     /// <summary>
@@ -1395,7 +1398,8 @@ public static class ContainerManager
                 }
             }
 
-            foreach (var kvp in _currentStorageDict)
+            // Iterate storages in priority order (configured in storagePriority config section)
+            foreach (var kvp in StoragePriority.OrderStorages(_currentStorageDict, GetStorageType))
             {
                 if (remaining <= 0)
                     break;
@@ -1645,12 +1649,14 @@ public static class ContainerManager
         public string SourceType { get; }
         public ItemStack[] Items { get; }
         public TileEntity TileEntity { get; }
+        public StorageType Type { get; }
 
-        public StorageSourceInfo(string sourceType, ItemStack[] items, TileEntity tileEntity)
+        public StorageSourceInfo(string sourceType, ItemStack[] items, TileEntity tileEntity, StorageType type)
         {
             SourceType = sourceType;
             Items = items;
             TileEntity = tileEntity;
+            Type = type;
         }
 
         public void MarkModified()
@@ -1669,6 +1675,21 @@ public static class ContainerManager
                 TileEntity.SetModified();
             }
         }
+    }
+
+    /// <summary>
+    /// Gets the StorageType for a storage object in the dictionary.
+    /// Used for priority ordering during iteration.
+    /// </summary>
+    private static StorageType GetStorageType(object storage)
+    {
+        return storage switch
+        {
+            EntityStorage es => es.Type,
+            StorageSourceInfo si => si.Type,
+            // Containers (TEFeatureStorage, TileEntitySecureLootContainer) default to Container type
+            _ => StorageType.Container
+        };
     }
 
     /// <summary>
@@ -2027,7 +2048,7 @@ public static class ContainerManager
         var vehiclePos = new Vector3i(vehicle.position);
         
         // Wrap in EntityStorage for live position tracking
-        var entityStorage = new EntityStorage(vehicle, bag);
+        var entityStorage = new EntityStorage(vehicle, bag, StorageType.Vehicle);
         _knownStorageDict[vehiclePos] = entityStorage;
         _currentStorageDict[vehiclePos] = entityStorage;
 
@@ -2061,7 +2082,7 @@ public static class ContainerManager
             if (lootItems != null && lootItems.Any(i => i != null && !i.IsEmpty()))
             {
                 var dronePos = new Vector3i(drone.position);
-                var droneLootStorage = new EntityStorage(drone, drone.lootContainer);
+                var droneLootStorage = new EntityStorage(drone, drone.lootContainer, StorageType.Drone);
                 _knownStorageDict[dronePos] = droneLootStorage;
                 _currentStorageDict[dronePos] = droneLootStorage;
                 ProxiCraft.LogDebug($"Adding drone lootContainer at {dronePos}");
@@ -2074,7 +2095,7 @@ public static class ContainerManager
             return;
 
         var pos = new Vector3i(drone.position);
-        var droneBagStorage = new EntityStorage(drone, droneBag);
+        var droneBagStorage = new EntityStorage(drone, droneBag, StorageType.Drone);
         _knownStorageDict[pos] = droneBagStorage;
         _currentStorageDict[pos] = droneBagStorage;
         ProxiCraft.LogDebug($"Adding drone bag at {pos}");
@@ -2159,7 +2180,7 @@ public static class ContainerManager
         if (items == null || !items.Any(i => i != null && !i.IsEmpty()))
             return;
 
-        var sourceInfo = new StorageSourceInfo("dew collector", items, dewCollector);
+        var sourceInfo = new StorageSourceInfo("dew collector", items, dewCollector, StorageType.DewCollector);
         _knownStorageDict[worldPos] = sourceInfo;
         _currentStorageDict[worldPos] = sourceInfo;
         ProxiCraft.LogDebug($"Adding dew collector at {worldPos}");
@@ -2180,7 +2201,7 @@ public static class ContainerManager
         if (outputItems == null || !outputItems.Any(i => i != null && !i.IsEmpty()))
             return;
 
-        var sourceInfo = new StorageSourceInfo("workstation output", outputItems, workstation);
+        var sourceInfo = new StorageSourceInfo("workstation output", outputItems, workstation, StorageType.Workstation);
         // Use a modified position to avoid collision with container scanning
         var outputPos = new Vector3i(worldPos.x, worldPos.y + 10000, worldPos.z);
         _knownStorageDict[outputPos] = sourceInfo;

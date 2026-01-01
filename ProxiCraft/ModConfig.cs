@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace ProxiCraft;
 
 /// <summary>
@@ -44,6 +46,31 @@ public class ModConfig
 
     /// <summary>Allow using items from locked containers you have access to</summary>
     public bool allowLockedContainers = true;
+
+    // ===========================================
+    // STORAGE PRIORITY - Order to search containers
+    // ===========================================
+
+    /// <summary>
+    /// Priority order for searching storage sources. Lower numbers = checked first.
+    /// Items are pulled from sources in this order until the required amount is found.
+    /// 
+    /// Valid keys: Drone, DewCollector, Workstation, Container, Vehicle
+    /// Values can be numbers (1, 2, 3) or letters (A, B, C) - sorted alphanumerically.
+    /// 
+    /// Default order matches Beyond Storage 2:
+    ///   1. Drones, 2. Dew Collectors, 3. Workstations, 4. Containers, 5. Vehicles
+    /// 
+    /// Note: Player backpack and toolbelt are ALWAYS checked first (vanilla behavior).
+    /// </summary>
+    public Dictionary<string, string> storagePriority = new()
+    {
+        { "Drone", "1" },
+        { "DewCollector", "2" },
+        { "Workstation", "3" },
+        { "Container", "4" },
+        { "Vehicle", "5" }
+    };
 
     // ===========================================
     // FEATURES - What actions can use container items

@@ -390,6 +390,26 @@ public static class StartupHealthCheck
             AddResult("ItemRepair", "Item repair from containers", HealthStatus.Disabled, "Disabled in config");
         }
 
+        // Vehicle repair - dedicated patch for XUiM_Vehicle.RepairVehicle
+        if (config.enableForItemRepair)
+        {
+            var repairVehicleMethod = AccessTools.Method(typeof(XUiM_Vehicle), nameof(XUiM_Vehicle.RepairVehicle));
+            if (repairVehicleMethod != null)
+            {
+                AddResult("VehicleRepair", "Vehicle repair from containers", HealthStatus.OK,
+                    "XUiM_Vehicle.RepairVehicle patched");
+            }
+            else
+            {
+                AddResult("VehicleRepair", "Vehicle repair from containers", HealthStatus.Failed,
+                    "RepairVehicle method not found");
+            }
+        }
+        else
+        {
+            AddResult("VehicleRepair", "Vehicle repair from containers", HealthStatus.Disabled, "Disabled in config (enableForItemRepair)");
+        }
+
         // HUD Ammo Counter
         if (config.enableHudAmmoCounter)
         {

@@ -15,9 +15,32 @@ namespace ProxiCraft;
 /// - Uses thread-safe ConcurrentDictionary for multiplayer safety
 /// - All network packet operations are defensive (null checks, try-catch)
 /// - Feature is passive (logging only) - cannot affect gameplay
+///
+/// MULTIPLAYER SAFETY LOCK:
+/// - In multiplayer, mod functionality is DISABLED by default until server confirms ProxiCraft
+/// - Single-player games bypass this check entirely (no lock needed)
+/// - When client joins server, sends handshake and waits for response
+/// - If server responds: unlock mod functionality
+/// - If timeout (server doesn't have ProxiCraft): keep locked + show warning
+/// - This prevents CTD from client/server state mismatch
+///
+/// SERVER DETECTION:
+/// - Tracks when we send a handshake and whether server responds
+/// - If no response within timeout, warns user that server may not have ProxiCraft
+/// - This helps diagnose CTD issues from client/server mod mismatch
 /// </summary>
 public static class MultiplayerModTracker
 {
+    // Multiplayer safety lock - mod is disabled until server confirms ProxiCraft
+    private static bool _isMultiplayerSession;
+    private static bool _multiplayerUnlocked;
+
+    // Server response tracking
+    private static DateTime? _handshakeSentTime;
+    private static bool _serverResponseReceived;
+    private static bool _serverWarningShown;
+    private const float SERVER_RESPONSE_TIMEOUT_SECONDS = 10f;
+
     /// <summary>
     /// Information about a player's container mods
     /// </summary>
@@ -158,19 +181,195 @@ public static class MultiplayerModTracker
     }
 
     /// <summary>
-    /// Clears all tracked player data.
+    /// Clears all tracked player data and resets multiplayer state.
+    /// Called when leaving a server or starting a new game.
     /// </summary>
     public static void Clear()
     {
         try
         {
             _playerMods.Clear();
+            _handshakeSentTime = null;
+            _serverResponseReceived = false;
+            _serverWarningShown = false;
+            _isMultiplayerSession = false;
+            _multiplayerUnlocked = false;
         }
         catch
         {
             // Silent fail
         }
     }
+
+    /// <summary>
+    /// Called when entering a multiplayer session. Enables the safety lock.
+    /// Mod functionality will be disabled until server confirms ProxiCraft.
+    /// </summary>
+    public static void OnMultiplayerSessionStart()
+    {
+        try
+        {
+            _isMultiplayerSession = true;
+            _multiplayerUnlocked = false;
+            ProxiCraft.Log("[Multiplayer] Joined server - mod functionality locked until server confirmation");
+        }
+        catch
+        {
+            // Silent fail
+        }
+    }
+
+    /// <summary>
+    /// Checks if mod functionality should be allowed.
+    /// Returns true for single-player, or if multiplayer server has confirmed ProxiCraft.
+    /// </summary>
+    public static bool IsModAllowed()
+    {
+        try
+        {
+            // Single-player: always allowed
+            if (!_isMultiplayerSession)
+                return true;
+
+            // Multiplayer: only allowed if server confirmed
+            return _multiplayerUnlocked;
+        }
+        catch
+        {
+            // On error, default to allowed (don't break single-player)
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Gets the reason why mod is currently locked (for UI/logging).
+    /// Returns null if mod is allowed.
+    /// </summary>
+    public static string GetLockReason()
+    {
+        if (!_isMultiplayerSession)
+            return null;
+
+        if (_multiplayerUnlocked)
+            return null;
+
+        if (_serverWarningShown)
+            return "Server does not have ProxiCraft installed";
+
+        return "Waiting for server confirmation...";
+    }
+
+    /// <summary>
+    /// Called when we send a handshake to the server. Starts the timeout timer.
+    /// </summary>
+    public static void OnHandshakeSent()
+    {
+        try
+        {
+            _handshakeSentTime = DateTime.Now;
+            _serverResponseReceived = false;
+            _serverWarningShown = false;
+            ProxiCraft.LogDebug("[Multiplayer] Handshake sent, waiting for server response...");
+        }
+        catch
+        {
+            // Silent fail
+        }
+    }
+
+    /// <summary>
+    /// Called when we receive ANY handshake response (from server or broadcast).
+    /// This confirms the server has ProxiCraft installed and UNLOCKS mod functionality.
+    /// </summary>
+    public static void OnServerResponseReceived()
+    {
+        try
+        {
+            _serverResponseReceived = true;
+            
+            // UNLOCK mod functionality - server has ProxiCraft!
+            if (_isMultiplayerSession && !_multiplayerUnlocked)
+            {
+                _multiplayerUnlocked = true;
+                ProxiCraft.Log("[Multiplayer] Server confirmed ProxiCraft - mod functionality UNLOCKED");
+            }
+            else
+            {
+                ProxiCraft.LogDebug("[Multiplayer] Server response received - ProxiCraft confirmed on server");
+            }
+        }
+        catch
+        {
+            // Silent fail
+        }
+    }
+
+    /// <summary>
+    /// Checks if server response timed out. Call this periodically (e.g., every few seconds).
+    /// Returns true if warning was shown (so caller knows not to check again).
+    /// If timeout, mod stays LOCKED to prevent CTD.
+    /// </summary>
+    public static bool CheckServerResponseTimeout()
+    {
+        try
+        {
+            // Already received response or already warned
+            if (_serverResponseReceived || _serverWarningShown)
+                return _serverWarningShown;
+
+            // No handshake sent yet
+            if (!_handshakeSentTime.HasValue)
+                return false;
+
+            // Check if timeout exceeded
+            var elapsed = (DateTime.Now - _handshakeSentTime.Value).TotalSeconds;
+            if (elapsed < SERVER_RESPONSE_TIMEOUT_SECONDS)
+                return false;
+
+            // Timeout! Show warning - mod stays LOCKED
+            _serverWarningShown = true;
+
+            ProxiCraft.Log("======================================================================");
+            ProxiCraft.Log("[Multiplayer] ProxiCraft DISABLED - Server does not have it installed");
+            ProxiCraft.Log("----------------------------------------------------------------------");
+            ProxiCraft.Log("  The server does not appear to have ProxiCraft installed.");
+            ProxiCraft.Log("  ");
+            ProxiCraft.Log("  To prevent crashes, ProxiCraft functionality is DISABLED.");
+            ProxiCraft.Log("  You can still play, but container features won't work.");
+            ProxiCraft.Log("  ");
+            ProxiCraft.Log("  TO FIX:");
+            ProxiCraft.Log("  1. Install ProxiCraft on the server (same version as client)");
+            ProxiCraft.Log("  2. OR if server runs Beyond Storage 2 or another container mod,");
+            ProxiCraft.Log("     use that mod on your client instead - don't mix container mods.");
+            ProxiCraft.Log("======================================================================");
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gets whether the server has been confirmed to have ProxiCraft.
+    /// </summary>
+    public static bool IsServerConfirmed => _serverResponseReceived;
+
+    /// <summary>
+    /// Gets whether we're waiting for server response.
+    /// </summary>
+    public static bool IsWaitingForServer => _handshakeSentTime.HasValue && !_serverResponseReceived && !_serverWarningShown;
+
+    /// <summary>
+    /// Gets whether this is a multiplayer session.
+    /// </summary>
+    public static bool IsMultiplayerSession => _isMultiplayerSession;
+
+    /// <summary>
+    /// Gets whether mod is unlocked for multiplayer.
+    /// </summary>
+    public static bool IsMultiplayerUnlocked => _multiplayerUnlocked;
 }
 
 /// <summary>
@@ -254,6 +453,10 @@ internal class NetPackagePCHandshake : NetPackage
             var conflicts = string.IsNullOrEmpty(detectedConflicts)
                 ? new List<string>()
                 : detectedConflicts.Split(',').ToList();
+
+            // Mark that we received a response - server has ProxiCraft!
+            // This confirms the server understands our handshake packets.
+            MultiplayerModTracker.OnServerResponseReceived();
 
             MultiplayerModTracker.OnHandshakeReceived(senderEntityId, senderName, modName, modVersion, conflicts);
 

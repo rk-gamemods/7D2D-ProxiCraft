@@ -83,6 +83,9 @@ public class ProxiCraft : IModApi
         LoadConfig();
         InitConfigWatcher();
 
+        // Initialize storage priority ordering (reads from config once at startup)
+        StoragePriority.Initialize(Config);
+
         // Initialize network diagnostics (clears log file for fresh session)
         NetworkDiagnostics.Init();
 
@@ -196,6 +199,7 @@ public class ProxiCraft : IModApi
     /// <summary>
     /// Sends a multiplayer handshake packet to announce ProxiCraft presence.
     /// This allows detection of conflicting mods on other players.
+    /// Also initiates the multiplayer safety lock - mod is disabled until server confirms.
     /// </summary>
     private static System.Collections.IEnumerator SendMultiplayerHandshakeDelayed()
     {
@@ -209,11 +213,25 @@ public class ProxiCraft : IModApi
         if (!SingletonMonoBehaviour<ConnectionManager>.Instance.IsConnected)
             yield break;
 
+        // Check if this is truly multiplayer (not just single-player with network init)
+        bool isMultiplayer = !SingletonMonoBehaviour<ConnectionManager>.Instance.IsServer ||
+                             SingletonMonoBehaviour<ConnectionManager>.Instance.ClientCount() > 0;
+
+        if (!isMultiplayer)
+        {
+            LogDebug("Single-player or local host detected - no multiplayer safety lock needed");
+            yield break;
+        }
+
         try
         {
             var player = GameManager.Instance?.World?.GetPrimaryPlayer();
             if (player == null)
                 yield break;
+
+            // ENABLE MULTIPLAYER SAFETY LOCK
+            // Mod functionality will be disabled until server confirms ProxiCraft
+            MultiplayerModTracker.OnMultiplayerSessionStart();
 
             // Get list of locally detected conflicting mods to include in handshake
             var localConflicts = ModCompatibility.GetConflicts()
@@ -228,11 +246,30 @@ public class ProxiCraft : IModApi
             // Send to server (and server will broadcast to other clients)
             SingletonMonoBehaviour<ConnectionManager>.Instance.SendToServer(
                 (NetPackage)(object)packet, false);
+
+            // Start tracking for server response timeout
+            MultiplayerModTracker.OnHandshakeSent();
+
+            // Schedule a check for server response after timeout
+            ThreadManager.StartCoroutine(CheckServerResponseAfterDelay());
         }
         catch (Exception ex)
         {
             LogWarning($"Failed to send multiplayer handshake: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Checks for server response after the timeout period.
+    /// If no response received, shows a notice to the user.
+    /// </summary>
+    private static System.Collections.IEnumerator CheckServerResponseAfterDelay()
+    {
+        // Wait for timeout period (plus a small buffer)
+        yield return new WaitForSeconds(12f);
+
+        // Check if server responded
+        MultiplayerModTracker.CheckServerResponseTimeout();
     }
 
     #endregion
@@ -498,11 +535,17 @@ public class ProxiCraft : IModApi
     /// <summary>
     /// Checks if the game state is ready for container operations.
     /// Returns false if world/player/UI not yet initialized.
+    /// Also checks multiplayer safety lock - returns false if in multiplayer without server confirmation.
     /// </summary>
     private static bool IsGameReady()
     {
         try
         {
+            // Check multiplayer safety lock first
+            // In multiplayer, mod is disabled until server confirms ProxiCraft is installed
+            if (!MultiplayerModTracker.IsModAllowed())
+                return false;
+
             // Check GameManager exists
             var gm = GameManager.Instance;
             if (gm == null)
@@ -1296,6 +1339,34 @@ public class ProxiCraft : IModApi
     #endregion
 
     #region Harmony Patches - Reload Support
+
+    // ====================================================================================
+    // RELOAD SUPPORT - DESIGN DECISION
+    // ====================================================================================
+    //
+    // WHY TRANSPILER instead of PREFIX PRE-STAGE?
+    // --------------------------------------------
+    // Reload requires a VARIABLE amount of ammo (magazine size - current ammo). The exact
+    // count is calculated by vanilla code with perks, weapon mods, etc. factored in.
+    //
+    // Using a transpiler to intercept Bag.DecItem(item, count) is simpler because:
+    // - Vanilla already calculated the exact 'count' we need
+    // - We just extend the call: "if bag doesn't have enough, check containers"
+    // - No need to duplicate vanilla's magazine size / perk calculations
+    //
+    // ALTERNATIVE APPROACH (if transpiler breaks on game update):
+    // Could switch to PREFIX pre-stage like vehicle repair:
+    // 1. Calculate: neededAmmo = magazineSize - currentAmmo (factor in perks)
+    // 2. Check if bag has enough, if not transfer from containers
+    // 3. Let vanilla proceed normally
+    // DOWNSIDE: Must mirror vanilla's calculation logic, which could drift on updates.
+    //
+    // STABILITY TRADEOFF:
+    // - Transpiler: More brittle to IL changes, but simpler logic
+    // - Pre-stage: More stable patches, but duplicates game calculations
+    //
+    // Current choice: Transpiler (simpler, RobustTranspiler handles failures gracefully)
+    // ====================================================================================
     
     /// <summary>
     /// Patch ItemActionRanged.CanReload to check containers for ammo.
@@ -1461,6 +1532,25 @@ public class ProxiCraft : IModApi
     #endregion
 
     #region Harmony Patches - Vehicle Refuel Support
+
+    // ====================================================================================
+    // VEHICLE REFUEL SUPPORT - DESIGN DECISION
+    // ====================================================================================
+    //
+    // WHY TRANSPILER instead of PREFIX PRE-STAGE?
+    // --------------------------------------------
+    // Same reasoning as reload - fuel consumption is VARIABLE (tank capacity - current fuel).
+    // Vanilla calculates this internally. Transpiler intercepts Bag.DecItem and extends it.
+    //
+    // ALTERNATIVE APPROACH (if transpiler breaks on game update):
+    // Could switch to PREFIX pre-stage:
+    // 1. Calculate: neededFuel = tankCapacity - currentFuel
+    // 2. Transfer gas cans from containers to bag
+    // 3. Let vanilla proceed
+    // DOWNSIDE: Must handle partial gas cans, stack sizes, fuel efficiency perks.
+    //
+    // Current choice: Transpiler (RobustTranspiler with fallback patterns)
+    // ====================================================================================
     
     /// <summary>
     /// Patch EntityVehicle.hasGasCan to check containers.
@@ -2864,6 +2954,147 @@ public class ProxiCraft : IModApi
     //
     // No additional patches needed - this is just a documentation note.
     // ====================================================================================
+
+    #endregion
+
+    #region Harmony Patches - Vehicle Repair Support
+
+    // ====================================================================================
+    // VEHICLE REPAIR SUPPORT - DESIGN DECISION
+    // ====================================================================================
+    //
+    // Allows repairing vehicles using repair kits from nearby containers.
+    //
+    // WHY PREFIX PRE-STAGE instead of TRANSPILER?
+    // --------------------------------------------
+    // Vehicle repair always needs exactly 1 repair kit - FIXED amount. This makes
+    // pre-staging simple: just transfer 1 kit before vanilla runs.
+    //
+    // Why NOT transpiler here:
+    // - Vanilla's RepairVehicle intertwines kit consumption with repair logic
+    // - It reads kit quality/properties to calculate repair amount
+    // - Multiple IL points would need interception
+    // - A transpiler would be complex and fragile
+    //
+    // APPROACH:
+    // We use a PREFIX that "pre-stages" a repair kit from storage into the player's bag
+    // before vanilla runs. This lets vanilla handle all the actual repair logic, sounds,
+    // UI updates, perk bonuses, etc. - we just make sure the repair kit is available.
+    //
+    // CRITICAL: Must check CanStack() BEFORE removing from storage!
+    // If player inventory is full, we can't pre-stage, and removing the kit would lose it.
+    // Fixed in v1.2.1 - now fails gracefully if inventory is full.
+    //
+    // This approach is cleaner than replacing the entire method because:
+    // 1. Any future vanilla changes to repair logic will still apply
+    // 2. No transpiler needed - simple and robust
+    // 3. Compatible with other mods that might also patch this method
+    //
+    // COMPARISON TO RELOAD/REFUEL:
+    // | Feature        | Amount    | Approach    | Why                                |
+    // |----------------|-----------|-------------|------------------------------------|
+    // | Vehicle Repair | Fixed (1) | Pre-stage   | Simple, no calculations needed     |
+    // | Reload         | Variable  | Transpiler  | Vanilla calculates count for us    |
+    // | Refuel         | Variable  | Transpiler  | Vanilla calculates count for us    |
+    //
+    // ALTERNATIVE APPROACH (if current method has issues):
+    // Could use transpiler to intercept the specific kit consumption call, but would
+    // need to maintain the same ItemStack reference that vanilla uses for quality calc.
+    // ====================================================================================
+
+    /// <summary>
+    /// Patch XUiM_Vehicle.RepairVehicle to support repair kits from nearby containers.
+    /// Uses PREFIX to pre-stage a repair kit from storage before vanilla checks.
+    /// </summary>
+    [HarmonyPatch(typeof(XUiM_Vehicle), nameof(XUiM_Vehicle.RepairVehicle))]
+    [HarmonyPriority(Priority.High)]
+    private static class XUiM_Vehicle_RepairVehicle_Patch
+    {
+        public static void Prefix(XUi _xui, Vehicle vehicle)
+        {
+            if (!Config?.modEnabled == true || !Config?.enableForItemRepair == true)
+                return;
+
+            if (!IsGameReady())
+                return;
+
+            try
+            {
+                // Resolve vehicle if not provided
+                if (vehicle == null)
+                    vehicle = _xui?.vehicle?.GetVehicle();
+
+                if (vehicle == null)
+                    return;
+
+                // Check if repair is actually needed
+                if (vehicle.GetRepairAmountNeeded() <= 0)
+                    return;
+
+                EntityPlayerLocal player = _xui?.playerUI?.entityPlayer;
+                if (player == null)
+                    return;
+
+                ItemValue repairKitItem = ItemClass.GetItem("resourceRepairKit");
+                if (repairKitItem?.ItemClass == null)
+                    return;
+
+                // Check if player already has repair kits in bag or toolbelt
+                int bagCount = player.bag?.GetItemCount(repairKitItem) ?? 0;
+                int toolbeltCount = player.inventory?.GetItemCount(repairKitItem) ?? 0;
+
+                if (bagCount + toolbeltCount > 0)
+                {
+                    // Player has repair kits - vanilla will handle it
+                    return;
+                }
+
+                // No repair kits in inventory - check storage
+                int storageCount = ContainerManager.GetItemCount(Config, repairKitItem);
+                if (storageCount <= 0)
+                {
+                    // No repair kits anywhere - vanilla will show error
+                    return;
+                }
+
+                // Check if player has room to receive a repair kit BEFORE removing from storage
+                // If inventory is full, don't bother - let vanilla fail naturally
+                // (Can't repair a car with your arms full!)
+                ItemStack testStack = new ItemStack(repairKitItem.Clone(), 1);
+                bool canReceive = player.bag.CanStack(testStack) || player.inventory.CanStack(testStack);
+                
+                if (!canReceive)
+                {
+                    LogDebug($"Vehicle repair: Player inventory full, cannot pre-stage repair kit");
+                    return; // Let vanilla handle the "no repair kit" error
+                }
+
+                // Pre-stage: Remove 1 repair kit from storage and add to player's bag
+                int removed = ContainerManager.RemoveItems(Config, repairKitItem, 1);
+                if (removed > 0)
+                {
+                    // Add to player's bag so vanilla finds it
+                    ItemStack repairKitStack = new ItemStack(repairKitItem.Clone(), 1);
+                    bool added = player.bag.AddItem(repairKitStack);
+                    
+                    if (added)
+                    {
+                        LogDebug($"Vehicle repair: Pre-staged 1 repair kit from storage to bag");
+                    }
+                    else
+                    {
+                        // Bag full but toolbelt might work (race condition edge case)
+                        player.inventory.AddItem(repairKitStack);
+                        LogDebug($"Vehicle repair: Pre-staged 1 repair kit from storage to toolbelt");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogDebug($"Vehicle repair patch error: {ex.Message}");
+            }
+        }
+    }
 
     #endregion
 

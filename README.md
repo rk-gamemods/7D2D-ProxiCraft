@@ -2,7 +2,7 @@
 
 A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs using items from nearby storage containers.
 
-## ⬇️ [Download ProxiCraft-1.2.0.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.0.zip)
+## ⬇️ [Download ProxiCraft-1.2.1.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.1.zip)
 
 ## Features
 
@@ -130,6 +130,55 @@ If you experience lag, use the built-in profiler:
 | `pc perf report` | Show detailed performance report |
 
 The profiler tracks timing for container scans, item counting, and cache operations. Share the output when reporting performance issues.
+
+## Multiplayer
+
+### Requirements
+
+**IMPORTANT:** ProxiCraft must be installed on BOTH client AND server for multiplayer games.
+
+If only the client has ProxiCraft:
+- The server doesn't know about items in containers
+- Crafting/reloading may fail or cause crashes (CTD)
+- State desync between client and server
+
+### Multiplayer Safety Lock (v1.2.1+)
+
+ProxiCraft now includes automatic protection against client/server mismatch:
+
+1. **When joining a server**, mod functionality is temporarily LOCKED
+2. **Client sends a handshake** to check if server has ProxiCraft
+3. **If server responds** (has ProxiCraft), mod is UNLOCKED and works normally
+4. **If no response** (server doesn't have it), mod stays LOCKED to prevent CTD
+
+You'll see messages in the console:
+```
+[Multiplayer] Joined server - mod functionality locked until server confirmation
+[Multiplayer] Server confirmed ProxiCraft - mod functionality UNLOCKED
+```
+
+Or if server doesn't have ProxiCraft:
+```
+[Multiplayer] ProxiCraft DISABLED - Server does not have it installed
+  To prevent crashes, ProxiCraft functionality is DISABLED.
+  You can still play, but container features won't work.
+```
+
+Use `pc status` to check the current lock state.
+
+### Mod Conflicts in Multiplayer
+
+Do NOT mix different container mods between client and server:
+- If server runs **Beyond Storage 2**, use BS2 on client (not ProxiCraft)
+- If server runs **ProxiCraft**, use ProxiCraft on client (not BS2)
+- Different container mods will conflict and likely crash
+
+### Troubleshooting Multiplayer CTD
+
+1. Run `pc status` - check if multiplayer is LOCKED or UNLOCKED
+2. Check if server has ProxiCraft installed (same version as client)
+3. Run `pc conflicts` to check for mod conflicts
+4. If server uses a different container mod, switch your client to match
 
 ## Configuration
 
@@ -401,6 +450,16 @@ Outputs:
 - `Release/ProxiCraft.zip` - Distribution package
 
 ## Changelog
+
+### v1.2.1 - Storage Priority & Multiplayer Safety
+**New Features:**
+- **New**: Configurable storage priority - control which storage types are used first (Drone → Dew Collector → Workstation → Container → Vehicle)
+- **New**: Fuzzy config key matching - typos like "workstaion" auto-correct to "Workstation"
+- **New**: Multiplayer safety lock - mod auto-disables on servers without ProxiCraft to prevent CTD
+- **New**: Server detection notice - warns if connecting to incompatible server
+
+**Bug Fixes:**
+- **Fixed**: Vehicle repair with full inventory could lose repair kits - now checks inventory space before removing from storage
 
 ### v1.2.0 - Features & Bug Fixes
 **New Features:**

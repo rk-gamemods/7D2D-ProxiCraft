@@ -52,6 +52,20 @@ public static class NetworkDiagnostics
         "NetPackagePCHandshake"
     };
 
+    // Known conflicting mod packets - if we see these, warn about potential conflicts
+    // Key: packet type name pattern, Value: mod name for warning
+    private static readonly Dictionary<string, string> _conflictingPacketTypes = new Dictionary<string, string>
+    {
+        { "NetPackageBeyondStorage", "Beyond Storage 2" },
+        { "BeyondStorage", "Beyond Storage 2" },
+        { "NetPackageLockedTEs", "Beyond Storage 2" },
+        { "CraftFromContainers", "CraftFromContainers" },
+        { "NetPackageCFC", "CraftFromContainers" },
+    };
+
+    // Track which conflict warnings we've already shown (only warn once per mod)
+    private static readonly HashSet<string> _warnedConflictMods = new HashSet<string>();
+
     // Log file path and state
     private static string _networkLogPath;
     private static bool _initialized;
@@ -185,6 +199,43 @@ public static class NetworkDiagnostics
         {
             // Queue the log message - don't block the hot path with I/O
             QueueLogMessage($"New packet: {typeName} | Assembly: {info.AssemblyName} | Namespace: {info.Namespace ?? "(none)"}");
+
+            // Check for known conflicting mod packets
+            CheckForConflictingPacket(typeName, fullTypeName);
+        }
+    }
+
+    /// <summary>
+    /// Check if a packet is from a known conflicting mod and warn once.
+    /// </summary>
+    private static void CheckForConflictingPacket(string typeName, string fullTypeName)
+    {
+        try
+        {
+            foreach (var conflict in _conflictingPacketTypes)
+            {
+                if (typeName.Contains(conflict.Key) || fullTypeName.Contains(conflict.Key))
+                {
+                    string modName = conflict.Value;
+
+                    // Only warn once per mod
+                    if (_warnedConflictMods.Contains(modName))
+                        return;
+
+                    _warnedConflictMods.Add(modName);
+
+                    // Log to console and file - this is important context for crash diagnosis
+                    ProxiCraft.LogWarning($"[Network Conflict] Detected '{modName}' packets from another player!");
+                    ProxiCraft.LogWarning($"[Network Conflict] If crashes occur, this mod conflict may be the cause.");
+                    QueueLogMessage($"CONFLICT WARNING: Detected {modName} packet ({typeName}) - potential multiplayer mod conflict!");
+
+                    return;
+                }
+            }
+        }
+        catch
+        {
+            // Silent fail - conflict detection is best-effort
         }
     }
 
