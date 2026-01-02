@@ -15,14 +15,13 @@ A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs usin
 - ✅ **Painting** - Use paint from containers when using paint brush
 - ✅ **HUD Ammo Counter** - Shows total ammo from containers in HUD stat bar
 - ✅ **Recipe Tracker Updates** - Real-time ingredient count updates from containers
-- ✅ **Trader Selling** - Sell items from nearby containers to traders
+- ✅ **Trader Purchases** - Pay with dukes stored in containers
 - ✅ **Locked Slot Respect** - Items in locked container slots are excluded from all operations
 
 ### Extended Features (Transpiler-based)
 - ✅ **Weapon Reload** - Reload weapons using ammo from containers
 - ✅ **Vehicle Refuel** - Refuel vehicles using gas cans from containers
 - ✅ **Generator Refuel** - Refuel generators from containers
-- ✅ **Trader Purchases** - Pay with dukes stored in containers
 
 ### Runtime Configuration
 - ✅ **Live Config Reload** - Changes to config.json apply without restart
@@ -36,13 +35,91 @@ A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs usin
 - ✅ **Workstation Outputs** - Items in forge/campfire/chemistry output slots
 - ✅ **Configurable Priority** - Control which storage types are searched first
 
+### 🧪 EXPERIMENTAL: Multiplayer Support
+
+ProxiCraft includes **experimental multiplayer support** with a unique architecture designed for stability:
+
+#### Virtual Inventory System
+
+Unlike traditional approaches that patch individual game methods, ProxiCraft uses a **centralized Virtual Inventory Provider** that acts as the single source of truth for all storage-aware operations:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Virtual Inventory Provider (Central Hub)                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  All features route through ONE provider:                   │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐       │
+│  │  Crafting   │   │   Reload    │   │   Refuel    │       │
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘       │
+│         │                 │                 │               │
+│         └─────────────────┼─────────────────┘               │
+│                           ▼                                 │
+│                ┌──────────────────────┐                     │
+│                │ VirtualInventory     │                     │
+│                │ Provider             │ ◄── MP Safety Gate  │
+│                └──────────┬───────────┘                     │
+│                           │                                 │
+│         ┌─────────────────┼─────────────────┐               │
+│         ▼                 ▼                 ▼               │
+│    ┌─────────┐      ┌─────────┐      ┌──────────┐          │
+│    │   Bag   │      │ Toolbelt│      │ Storage  │          │
+│    └─────────┘      └─────────┘      └──────────┘          │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Why This Matters:**
+- **Single Point of Control** - All storage access flows through one class
+- **Consistent Safety Checks** - Multiplayer validation happens in ONE place
+- **Bug Fixes Apply Globally** - Fix a bug once, it's fixed everywhere
+- **Zero Crash Window** - The provider gates ALL storage access when unsafe
+
+#### How Multiplayer Protection Works
+
+1. **Immediate Lock** - When ANY client connects, storage access is instantly blocked
+2. **Verification Handshake** - Client must prove they have ProxiCraft installed
+3. **Unlock on Success** - Once verified (~100-300ms), normal operation resumes
+4. **Culprit Identification** - If verification fails, the player without the mod is identified by name
+
+```
+Client Connects → IMMEDIATE LOCK → Handshake Sent → Verified? → UNLOCK
+                        │                              │
+                        │                              └─ No → STAY LOCKED
+                        │                                      (Culprit identified)
+                        └── Storage blocked during this entire process
+```
+
+**This "Guilty Until Proven Innocent" approach means:**
+- No crashes during the verification window (unlike timeout-based approaches)
+- Server operator knows exactly who needs to install the mod
+- Mod auto-enables when the problematic player disconnects
+
+#### Experimental Status
+
+This feature is marked **EXPERIMENTAL** because:
+- Multiplayer has many edge cases that are difficult to test
+- Dedicated server configurations vary widely
+- Network conditions affect handshake timing
+
+**What's tested:**
+- ✅ Single player (works perfectly)
+- ✅ Co-op hosting (one player hosts, friends join)
+- ✅ Basic dedicated server setup
+
+**What needs more testing:**
+- ⚠️ High-latency connections
+- ⚠️ Large player counts (8+)
+- ⚠️ Various dedicated server configurations
+
+**Report issues with multiplayer** using `pc fullcheck` output - this helps us improve the system.
+
 ### Reliability Features
 - ✅ **Startup Health Check** - Validates all features on load
 - ✅ **Silent by Default** - No output unless there are issues
 - ✅ **Auto-Adaptation** - Attempts to recover from game updates
 - ✅ **Conflict Detection** - Warns about mod conflicts
 - ✅ **Graceful Degradation** - Features disable individually if broken
-- ✅ **Multiplayer Safety Lock** - Auto-disables on incompatible servers to prevent crashes
 
 ## Stability Philosophy
 
@@ -52,7 +129,7 @@ ProxiCraft is designed to survive game updates through multiple layers of protec
 
 | Tier | Features | Risk Level |
 |------|----------|------------|
-| **Stable** | Crafting, Quests, Block Repair, Lockpicking, Item Repair, Painting, HUD Ammo, Recipe Tracker, Trader Selling, Locked Slots | Low - Uses simple postfix patches |
+| **Stable** | Crafting, Quests, Block Repair, Lockpicking, Item Repair, Painting, HUD Ammo, Recipe Tracker, Locked Slots | Low - Uses simple postfix patches |
 | **Less Stable** | Reload, Vehicle Refuel, Generator Refuel, Trader Purchases | Medium - Uses transpiler patches that modify IL code |
 | **Storage Sources** | Vehicles, Drones, Dew Collectors, Workstations | Low - Only reads game data, doesn't patch |
 
@@ -135,6 +212,10 @@ The profiler tracks timing for container scans, item counting, and cache operati
 
 ## Multiplayer
 
+### 🧪 EXPERIMENTAL - Read This First
+
+Multiplayer support is experimental. See the "EXPERIMENTAL: Multiplayer Support" section above for how it works.
+
 ### Requirements
 
 **IMPORTANT:** ProxiCraft must be installed on BOTH client AND server for multiplayer games.
@@ -142,14 +223,9 @@ The profiler tracks timing for container scans, item counting, and cache operati
 **This includes private/co-op games** where one player hosts:
 - The hosting player IS the server
 - ALL players (host + friends) must have ProxiCraft installed
-- If only the host has it (or only friends have it), crashes will occur
+- If any player doesn't have it, they'll be identified and the mod stays locked for safety
 
-If only the client has ProxiCraft:
-- The server doesn't know about items in containers
-- Crafting/reloading may fail or cause crashes (CTD)
-- State desync between client and server
-
-### Multiplayer Config Sync (v1.2.1+)
+### Server Config Sync
 
 When joining a server with ProxiCraft, **your local settings are automatically overridden** with the server's settings:
 
@@ -158,7 +234,7 @@ When joining a server with ProxiCraft, **your local settings are automatically o
 - **Feature toggles** - Crafting, reload, refuel, etc.
 - **Storage priority** - Order of container searching
 
-This prevents desync issues where Player A sees items in containers but Player B doesn't (crash potential).
+This prevents desync issues where Player A sees items in containers but Player B doesn't.
 
 Example log when settings differ:
 ```
@@ -171,87 +247,25 @@ Settings changed from server (3 differences):
 
 Use `pc status` to confirm settings are synced: `Multiplayer: UNLOCKED (server confirmed, config synced ✓)`
 
-### Multiplayer Safety Lock (v1.2.1+)
-
-ProxiCraft now includes automatic protection against client/server mismatch:
-
-**Client-Side Protection** (when joining a server):
-1. Mod functionality is temporarily LOCKED when you join
-2. Client sends a handshake to check if server has ProxiCraft
-3. If server responds (has ProxiCraft), mod is UNLOCKED and works normally
-4. If no response (server doesn't have it), mod stays LOCKED to prevent CTD
-
-**Host-Side Protection** (when hosting a game):
-1. **IMMEDIATE LOCK**: When ANY client connects, mod is instantly disabled
-2. This prevents crashes during the verification window (~100-300ms typical)
-3. Client sends handshake to prove they have ProxiCraft installed
-4. Once verified, mod re-enables (typical time: under 1 second)
-5. **If verification fails** (no mod), the culprit is identified and logged
-6. When that player disconnects, ProxiCraft automatically re-enables
-
-This "Guilty Until Proven Innocent" approach ensures ZERO crash window:
-- Old approach: Wait 10+ seconds, crash can happen during wait
-- New approach: Lock immediately, unlock after proof of mod installation
-
-Example host-side warning when client without mod is detected:
-```
-[Multiplayer] NEW CLIENT CONNECTING - Mod IMMEDIATELY LOCKED
-  Client: PlayerName
-  Reason: Waiting for ProxiCraft verification handshake
-  Unverified clients: 1
-
-[Multiplayer] ProxiCraft DISABLED - Client WITHOUT mod CONFIRMED!
-----------------------------------------------------------------------
-  CULPRIT: 'PlayerName' does NOT have ProxiCraft installed!
-  
-  ProxiCraft was already locked when they connected.
-  This confirms they do not have the mod - crash prevented!
-  
-  TO FIX:
-  1. Ask 'PlayerName' to install ProxiCraft (same version as host)
-  2. OR kick 'PlayerName' - mod will re-enable when they leave
-```
-
-Use `pc status` to check the current lock state and see who caused the lock.
-
 ### Multiplayer Safety Configuration
 
 For **trusted modded servers** where you enforce mod installation externally (Discord rules, modpack, etc.), you can tune the safety settings in `config.json`:
 
 ```json
 {
-  // Crash prevention - ONLY disable on trusted/moderated servers!
-  "multiplayerImmediateLock": true,       // false = honor system (NOT RECOMMENDED)
-  "multiplayerHandshakeTimeoutSeconds": 10 // 3-30 seconds
+  "multiplayerImmediateLock": true,
+  "multiplayerHandshakeTimeoutSeconds": 10
 }
 ```
 
-⚠️ **WARNING**: Setting `multiplayerImmediateLock` to `false` removes crash protection. If ANY player joins without ProxiCraft, the server WILL crash. The setting is logged prominently when hosting:
-
-```
-[Multiplayer] HOST MODE STARTING - Safety Settings:
-  Immediate Client Lock: >>> DISABLED <<< (honor system)
-  Handshake Timeout: 10 seconds
-  
-  ⚠️ WARNING: Immediate lock is DISABLED!
-  If a player joins WITHOUT ProxiCraft, the server may CRASH!
-```
-
-This log entry appears in output_log.txt and helps diagnose CTD - if you see "DISABLED" followed by a crash 5 seconds later, you know why.
-
-### Mod Conflicts in Multiplayer
-
-Do NOT mix different container mods between client and server:
-- If server runs **Beyond Storage 2**, use BS2 on client (not ProxiCraft)
-- If server runs **ProxiCraft**, use ProxiCraft on client (not BS2)
-- Different container mods will conflict and likely crash
+⚠️ **WARNING**: Setting `multiplayerImmediateLock` to `false` removes crash protection. Only do this on servers where you control who joins.
 
 ### Troubleshooting Multiplayer CTD
 
 1. Run `pc status` - check if multiplayer is LOCKED or UNLOCKED
 2. Check if server has ProxiCraft installed (same version as client)
 3. Run `pc conflicts` to check for mod conflicts
-4. If server uses a different container mod, switch your client to match
+4. If problems persist, run `pc fullcheck` and report the output
 
 ## Configuration
 
@@ -264,21 +278,12 @@ Edit `config.json` in the mod folder. The file is organized into sections:
   "verboseHealthCheck": false,
   "range": 15,
 
-  // Storage Sources (STABLE)
   "pullFromVehicles": true,
   "pullFromDrones": true,
   "pullFromDewCollectors": true,
   "pullFromWorkstationOutputs": true,
   "allowLockedContainers": true,
 
-  // Which container types to pull items from
-  "pullFromVehicles": true,
-  "pullFromDrones": true,
-  "pullFromDewCollectors": true,
-  "pullFromWorkstationOutputs": true,
-  "allowLockedContainers": true,
-
-  // Order to search storage sources (lower = checked first), Player inventory always first
   "storagePriority": {
     "Drone": "1",
     "DewCollector": "2",
@@ -287,7 +292,6 @@ Edit `config.json` in the mod folder. The file is organized into sections:
     "Vehicle": "5"
   },
 
-  // Core Features (STABLE - simple patches)
   "enableForCrafting": true,
   "enableForQuests": true,
   "enableForRepairAndUpgrade": true,
@@ -295,13 +299,11 @@ Edit `config.json` in the mod folder. The file is organized into sections:
   "enableForItemRepair": true,
   "enableForPainting": true,
 
-  // Extended Features (LESS STABLE - transpiler patches)
   "enableForReload": true,
   "enableForRefuel": true,
   "enableForTrader": true,
   "enableForGeneratorRefuel": true,
 
-  // UI Features
   "enableHudAmmoCounter": true,
   "enableRecipeTrackerUpdates": true,
   "respectLockedSlots": true
@@ -337,8 +339,6 @@ Range is the **radius** from player position:
 | 30 | Entire building | Slight performance impact |
 | -1 | All loaded chunks | May cause lag with many containers |
 
-**Important:** Range does NOT affect Trader purchases - those work regardless of distance when talking to a trader.
-
 ### Feature Notes
 
 | Feature | Range Affected? | Notes |
@@ -349,80 +349,6 @@ Range is the **radius** from player position:
 | Vehicle Refuel | Yes | Containers near the vehicle |
 | Generator Refuel | Yes | Containers near the generator UI |
 | Lockpicking | Yes | Containers within range |
-
-## Project Structure
-
-```
-ProxiCraft/
-├── ProxiCraft/                    # Source code
-│   ├── ProxiCraft.cs              # Main mod with Harmony patches
-│   ├── ContainerManager.cs        # Container scanning and item management
-│   ├── ModConfig.cs               # Configuration settings
-│   ├── SafePatcher.cs             # Safe patching utilities
-│   ├── AdaptivePatching.cs        # Mod compatibility helpers
-│   ├── AdaptiveMethodFinder.cs    # Game update recovery
-│   ├── RobustTranspiler.cs        # Safe transpiler utilities
-│   ├── StartupHealthCheck.cs      # Feature validation system
-│   ├── ModCompatibility.cs        # Conflict detection
-│   ├── ConsoleCmdProxiCraft.cs    # Console commands (pc)
-│   ├── PerformanceProfiler.cs     # Performance profiling system
-│   └── NetPackagePCLock.cs        # Multiplayer lock sync
-├── Release/ProxiCraft/            # Ready-to-deploy mod package
-│   ├── ProxiCraft.dll             # Compiled mod
-│   ├── ModInfo.xml                # Mod metadata
-│   └── config.json                # User configuration
-├── tools/                         # Development utilities
-├── RESEARCH_NOTES.md              # Development history
-├── INVENTORY_EVENTS_GUIDE.md      # Technical reference
-└── LICENSE                        # MIT License
-```
-
-## Technical Details
-
-### Patching Methodology
-
-ProxiCraft uses three types of Harmony patches:
-
-1. **Postfix Patches** (Most Stable)
-   - Run after original method
-   - Can modify return values
-   - Used for: Item counting, crafting validation
-
-2. **Prefix Patches** (Stable)
-   - Run before original method
-   - Can skip original if needed
-   - Used for: Painting, lockpicking
-
-3. **Transpiler Patches** (Less Stable)
-   - Modify IL bytecode directly
-   - Most powerful but most fragile
-   - Used for: Reload, refuel, trader
-
-### Health Check System
-
-The startup health check validates:
-- **Method existence** - Target methods still exist
-- **Patch application** - Harmony hooks are active
-- **Transpiler success** - IL modifications applied correctly
-- **Type availability** - Required game classes exist
-
-Results are cached and available via `pc health` command.
-
-### Adaptive Recovery
-
-When a game update changes code:
-
-```
-1. Try exact method match
-   ↓ (fail)
-2. Try signature-based matching
-   ↓ (fail)
-3. Try name pattern search (e.g., "GetAmmo" → "GetAmmoCount")
-   ↓ (fail)
-4. Mark feature as FAILED, continue with other features
-```
-
-This prevents the mod from crashing due to minor game updates.
 
 ## Design Decisions
 
@@ -439,101 +365,46 @@ When counting items in workstations (forge, campfire, workbench, chemistry stati
 | **Fuel** | ❌ No | Fuel is being burned, not available |
 | **Tool** | ❌ No | Tools are in use (anvil, beaker, etc.) |
 
-**Example:** You put 100 iron ore in the forge. You should NOT be able to craft iron bars from that ore - it's actively being smelted. But once the iron bars appear in the output slot, those ARE available for crafting.
-
-This prevents confusion where:
-- Iron in the smelting queue counts as "available" for crafting
-- Wood in the fuel slot counts as building material
-- The beaker in the chemistry station tool slot counts as an item
-
 ### Vehicle/Drone Storage: Full Access
 
 Unlike workstations, vehicle and drone storage containers are fully counted. All slots are available because these are true storage containers - there's no "processing" happening.
 
-### Open Container Handling
+### Virtual Inventory Architecture
 
-When you have a container/vehicle/workstation UI open, items are counted directly from that open source rather than from the world scan. This ensures:
-- Real-time updates as you move items
-- No double-counting
-- Accurate challenge tracker updates
+All storage-aware operations flow through a central `VirtualInventoryProvider` class. This design:
 
-## Multiplayer Support
+1. **Centralizes multiplayer safety** - One place to gate all storage access
+2. **Ensures consistency** - All features use the same counting/consumption logic
+3. **Simplifies debugging** - Problems traced to one location
+4. **Enables global fixes** - Fix a bug once, fixed everywhere
 
-### ⚠️ Server Compatibility Requirement
+## Project Structure
 
-**ProxiCraft must be installed on BOTH the client and server** to work safely in multiplayer.
-
-**What happens if server doesn't have ProxiCraft:**
-- Mod automatically detects incompatible servers on connection
-- ProxiCraft disables itself to prevent crashes
-- Console opens automatically showing warning message:
-  ```
-  ⚠️ PROXICRAFT SAFETY LOCK ENGAGED ⚠️
-  Server does not have ProxiCraft installed.
-  ProxiCraft has been DISABLED to prevent crashes.
-  
-  TO FIX:
-  1. Install ProxiCraft on the server (same version as client)
-  2. OR if server runs Beyond Storage 2 or another container mod,
-     use that mod on your client instead - don't mix container mods.
-  ```
-
-**Why this is necessary:**
-- Client sees items in nearby containers
-- Server without ProxiCraft doesn't know about those items
-- Attempting to use those items causes state mismatch → crash
-- Safety lock prevents this by disabling the mod when incompatible
-
-**Expected behavior when both have ProxiCraft:**
-- Works safely when players use **separate containers** at different locations
-- May have issues with **shared storage** that multiple players access
-- Race conditions possible if players craft simultaneously from the same container
-
-## Troubleshooting
-
-### Mod doesn't work at all
-1. Run `pc status` - Check if mod is enabled
-2. Run `pc health` - Check for failed features
-3. Ensure EAC is disabled
-4. Check game log for `[ProxiCraft]` errors
-
-### Specific feature not working
-1. Run `pc fullcheck` for detailed diagnostics
-2. Check if feature is enabled in config.json
-3. Check if health check shows FAIL for that feature
-4. If FAIL: Feature may need mod update for this game version
-
-### Performance issues
-1. Run `pc perf on`, play for a bit, then `pc perf report` to identify bottlenecks
-2. Reduce `range` (default 15 is recommended)
-3. Set `isDebug` to `false`
-4. Disable features you don't use
-
-### After game update
-1. Run `pc health` - Check which features broke
-2. Features showing [ADAPT] are auto-recovered
-3. Features showing [FAIL] need mod update
-4. Report issues with `pc fullcheck` output
-
-## Potential Mod Conflicts
-
-### High Risk (Will Conflict)
-- **CraftFromChests / CraftFromContainersPlus** - Same functionality
-- **AutoCraft** - Modifies crafting methods
-- Other "craft from containers" mods
-
-### Medium Risk (May Work)
-- **SMXui / SMXhud** - UI overhauls
-- **BiggerBackpack** - Changes inventory
-- **ExpandedStorage** - Changes containers
-
-### Low Risk
-- **BetterVehicles** - May affect refuel
-- Most mods not touching crafting/inventory
-
-### Tested Compatible
-- **JaWoodleUI** - UI overhaul
-- **TechFreqsIncreasedBackpack** - Larger backpack
+```
+ProxiCraft/
+├── ProxiCraft/                    # Source code
+│   ├── ProxiCraft.cs              # Main mod with Harmony patches
+│   ├── ContainerManager.cs        # Container scanning and item management
+│   ├── VirtualInventoryProvider.cs # Central virtual inventory hub (MP-safe)
+│   ├── ModConfig.cs               # Configuration settings
+│   ├── MultiplayerModTracker.cs   # MP handshake and safety lock
+│   ├── SafePatcher.cs             # Safe patching utilities
+│   ├── AdaptivePatching.cs        # Mod compatibility helpers
+│   ├── AdaptiveMethodFinder.cs    # Game update recovery
+│   ├── RobustTranspiler.cs        # Safe transpiler utilities
+│   ├── StartupHealthCheck.cs      # Feature validation system
+│   ├── ModCompatibility.cs        # Conflict detection
+│   ├── ConsoleCmdProxiCraft.cs    # Console commands (pc)
+│   ├── PerformanceProfiler.cs     # Performance profiling system
+│   └── NetPackagePCLock.cs        # Multiplayer lock sync packets
+├── Release/ProxiCraft/            # Ready-to-deploy mod package
+│   ├── ProxiCraft.dll             # Compiled mod
+│   ├── ModInfo.xml                # Mod metadata
+│   └── config.json                # User configuration
+├── TECHNICAL_REFERENCE.md         # Technical documentation
+├── RESEARCH_NOTES.md              # Development history
+└── LICENSE                        # MIT License
+```
 
 ## Inspiration & Prior Art
 
@@ -543,7 +414,6 @@ ProxiCraft builds on concepts from:
 |-----|--------|-------|
 | [CraftFromContainers](https://www.nexusmods.com/7daystodie/mods/2196) | aedenthorn | Original concept |
 | [CraftFromContainers v1.0](https://www.nexusmods.com/7daystodie/mods/4970) | SYN0N1M | Game v1.0 port |
-| BeyondStorage2 | superguru | Feature ideas |
 
 ### What's Different in ProxiCraft
 
@@ -554,6 +424,8 @@ ProxiCraft builds on concepts from:
 | Silent by Default | ✅ No spam | ❌ |
 | Challenge Tracker | ✅ Full integration | ❌ |
 | Stability Tiers | ✅ Documented risk levels | ❌ |
+| Virtual Inventory | ✅ Centralized MP-safe architecture | ❌ |
+| Zero-Crash MP Protection | ✅ Immediate lock on connect | ❌ |
 
 ## Building
 
@@ -570,26 +442,28 @@ Outputs:
 
 ## Changelog
 
-### v1.2.1 - Storage Priority & Multiplayer Safety
+### v1.2.1 - Virtual Inventory Architecture & Multiplayer Safety
+
 **New Features:**
-- **Multiplayer Safety Lock** - Comprehensive protection for both hosts and clients
-  - **Client-side**: Auto-detects servers without ProxiCraft and disables mod to prevent crashes
-  - **Host-side "Guilty Until Proven Innocent"**: IMMEDIATELY locks mod when ANY client connects
-    - Zero crash window (previously had ~10 second vulnerability)
-    - Mod unlocks only after client proves they have ProxiCraft (~100-300ms typical)
-    - If client doesn't have mod, they're identified as the culprit
-  - Clearly identifies the player causing the lock (e.g., "CULPRIT: 'PlayerName' does NOT have ProxiCraft")
-  - Console opens automatically when safety lock engages
-  - Mod auto-re-enables when the offending player disconnects
-- **Configurable Storage Priority** - Control search order: Drone → Dew Collector → Workstation → Container → Vehicle
-  - Fuzzy config key matching - typos like "workstaion" auto-correct to "Workstation"
-  - Added `storagePriority` section to shipped config.json
+- **🧪 EXPERIMENTAL Multiplayer Support** with unique Virtual Inventory architecture
+  - Centralized `VirtualInventoryProvider` - ALL storage operations flow through one class
+  - Single point of control for multiplayer safety checks
+  - Bug fixes apply globally across all features
+- **Zero-Crash Multiplayer Protection** - "Guilty Until Proven Innocent" approach
+  - **IMMEDIATE LOCK** when ANY client connects (zero crash window)
+  - Mod unlocks only after client proves they have ProxiCraft (~100-300ms)
+  - Culprit identification - clearly shows which player needs the mod
+  - Auto-re-enables when offending player disconnects
+- **Server Config Sync** - Clients automatically use server's settings
+  - Prevents desync where players see different items
+  - Differences logged when settings change
+- **Configurable Storage Priority** - Control search order (Drone → DewCollector → Workstation → Container → Vehicle)
+- **Enhanced Safety Mode** - Optional per-feature MP safety (experimental, default OFF)
 
 **Bug Fixes:**
 - Console command `pc help` now works correctly (was causing "unknown command" loop)
-- Vehicle repair with full inventory could lose repair kits - now checks inventory space before removing from storage
-- Fixed duplicate profiler timer calls for Vehicle/Drone counting (inflated call counts)
-- Removed obsolete `enableTraderSelling` from `pc config list` output
+- Vehicle repair with full inventory could lose repair kits - now checks inventory space first
+- Fixed duplicate profiler timer calls (inflated statistics)
 
 ### v1.2.0 - Features & Bug Fixes
 **New Features:**

@@ -529,3 +529,156 @@ Instead of patching every consumer, patch at the source:
 - `Inventory.GetItemCount` - Would affect ALL inventory queries
 
 **Caution**: Low-level patches are more invasive and may have unintended side effects (item removal, duplication, etc.)
+
+---
+
+## Virtual Inventory Architecture (SCVI)
+
+### Overview
+
+ProxiCraft v1.2.1 introduces the **Subsystem-Centric Virtual Inventory (SCVI)** architecture, also known as the Virtual Inventory Provider pattern.
+
+### The Problem
+
+Traditional container mods patch each game method individually:
+- GetItemCount patch for crafting
+- RemoveItems patch for crafting
+- CanReload patch for reload
+- DecItem patch for reload
+- etc.
+
+This creates problems:
+1. **Scattered safety checks** - Each patch must implement its own multiplayer safety
+2. **Inconsistent behavior** - Bugs fixed in one patch may exist in others
+3. **Hard to debug** - Problems could be anywhere
+4. **Multiplayer crash risk** - Miss one safety check = CTD
+
+### The Solution: Virtual Inventory Provider
+
+All storage-aware operations flow through a single class:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Virtual Inventory Provider (Central Hub)                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  All features route through ONE provider:                   │
+│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐       │
+│  │  Crafting   │   │   Reload    │   │   Refuel    │       │
+│  └──────┬──────┘   └──────┬──────┘   └──────┬──────┘       │
+│         │                 │                 │               │
+│         └─────────────────┼─────────────────┘               │
+│                           ▼                                 │
+│                ┌──────────────────────┐                     │
+│                │ VirtualInventory     │                     │
+│                │ Provider             │ ◄── MP Safety Gate  │
+│                └──────────┬───────────┘                     │
+│                           │                                 │
+│         ┌─────────────────┼─────────────────┐               │
+│         ▼                 ▼                 ▼               │
+│    ┌─────────┐      ┌─────────┐      ┌──────────┐          │
+│    │   Bag   │      │ Toolbelt│      │ Storage  │          │
+│    └─────────┘      └─────────┘      └──────────┘          │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Key Methods
+
+| Method | Purpose |
+|--------|---------|
+| `GetTotalItemCount(player, item)` | Count items across bag + toolbelt + storage |
+| `ConsumeItems(player, item, count)` | Remove items in priority order: Bag → Toolbelt → Storage |
+| `HasItems(player, item, count)` | Check if total across all sources meets requirement |
+| `HasAllItems(player, requirements)` | Check multiple item requirements at once |
+
+### Multiplayer Safety Gate
+
+The provider includes a central safety check:
+
+```csharp
+if (!MultiplayerModTracker.IsModAllowed())
+{
+    // Return inventory-only counts (no storage)
+    return bagCount + toolbeltCount;
+}
+// Include storage
+return bagCount + toolbeltCount + storageCount;
+```
+
+This happens in ONE place, affecting ALL features automatically.
+
+### Enhanced Safety Mode
+
+Each feature has an optional Enhanced Safety flag:
+- `enhancedSafetyCrafting` - Crafting operations
+- `enhancedSafetyReload` - Weapon reload
+- `enhancedSafetyRepair` - Block repair/upgrade
+- `enhancedSafetyVehicle` - Vehicle repair
+- `enhancedSafetyRefuel` - Vehicle/generator refuel
+
+When enabled, the feature routes through VirtualInventoryProvider.
+When disabled (default), the feature uses legacy direct ContainerManager access.
+
+### Benefits
+
+1. **Single Point of Control** - All storage access flows through one class
+2. **Consistent Safety Checks** - Multiplayer validation happens in ONE place
+3. **Bug Fixes Apply Globally** - Fix a bug once, it's fixed everywhere
+4. **Simplified Debugging** - Problems traced to one location
+5. **Zero Crash Window** - Storage blocked instantly when unsafe
+
+### Implementation Notes
+
+The VirtualInventoryProvider is stateless - it queries current game state each call.
+This avoids cache synchronization issues in multiplayer.
+
+Patches that use VirtualInventoryProvider:
+- `XUiM_PlayerInventory.GetItemCount` (crafting)
+- `XUiM_PlayerInventory.HasItems` (crafting)
+- `XUiM_PlayerInventory.RemoveItems` (crafting)
+- `ItemActionRanged.CanReload` (reload)
+- `AnimatorRangedReloadState.GetAmmoCountToReload` (reload)
+- `ItemActionRepair.CanRemoveRequiredResource` (repair)
+- `ItemActionRepair.RemoveRequiredResource` (repair)
+- `EntityVehicle.hasGasCan` (refuel)
+- `EntityVehicle.takeFuel` (refuel)
+- `XUiM_Vehicle.RepairVehicle` (vehicle repair)
+- `XUiC_PowerSourceStats.BtnRefuel_OnPress` (generator)
+
+---
+
+## Multiplayer Handshake Protocol
+
+### Packet Types
+
+| Packet | Direction | Purpose |
+|--------|-----------|---------|
+| `NetPackagePCHandshake` | Client → Server | "I have ProxiCraft installed" |
+| `NetPackagePCHandshakeAck` | Server → Client | "Acknowledged, here's my config" |
+| `NetPackagePCConfig` | Server → Client | Server configuration to sync |
+
+### Handshake Flow
+
+```
+Client                                Server
+  │                                     │
+  │ ───── NetPackagePCHandshake ─────► │
+  │                                     │ Mark client as verified
+  │ ◄─── NetPackagePCHandshakeAck ───── │
+  │ ◄─── NetPackagePCConfig ─────────── │
+  │                                     │
+  │ Apply server config                 │
+  │ Unlock mod                          │
+```
+
+### "Guilty Until Proven Innocent"
+
+When ANY client connects:
+1. `multiplayerModLocked = true` (IMMEDIATELY)
+2. Timer starts for handshake timeout
+3. If handshake received → unlock for that client
+4. If timeout → client marked as "no mod"
+5. If ANY client lacks mod → stay locked, identify culprit
+
+This approach ensures ZERO crash window - storage is blocked before any unsafe operation can occur.
