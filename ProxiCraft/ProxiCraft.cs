@@ -1048,6 +1048,9 @@ public class ProxiCraft : IModApi
     /// <summary>
     /// DIRECT Postfix patch on XUiM_PlayerInventory.GetItemCount
     /// This is the most reliable way to add container counts to ingredient displays.
+    /// 
+    /// ENHANCED SAFETY MODE: When enhancedSafetyCrafting is enabled, uses VirtualInventoryProvider
+    /// which has additional multiplayer safety checks. When disabled, uses ContainerManager directly.
     /// </summary>
     [HarmonyPatch(typeof(XUiM_PlayerInventory), nameof(XUiM_PlayerInventory.GetItemCount), new Type[] { typeof(ItemValue) })]
     [HarmonyPriority(Priority.Low)]
@@ -1064,7 +1067,26 @@ public class ProxiCraft : IModApi
 
             try
             {
-                int containerCount = ContainerManager.GetItemCount(Config, _itemValue);
+                int containerCount;
+                
+                // ENHANCED SAFETY: Use VirtualInventoryProvider for centralized safety checks
+                if (Config.enhancedSafetyCrafting)
+                {
+                    var player = GameManager.Instance?.World?.GetPrimaryPlayer();
+                    if (player == null) return;
+                    
+                    // VirtualInventoryProvider returns total (inventory + storage)
+                    // We already have inventory count in __result, so get total and subtract
+                    int totalCount = VirtualInventoryProvider.GetTotalItemCount(player, _itemValue);
+                    containerCount = totalCount - __result;
+                    if (containerCount < 0) containerCount = 0; // Safety
+                }
+                else
+                {
+                    // LEGACY: Direct ContainerManager access (original behavior)
+                    containerCount = ContainerManager.GetItemCount(Config, _itemValue);
+                }
+                
                 if (containerCount > 0)
                 {
                     int oldResult = __result;
@@ -1083,6 +1105,8 @@ public class ProxiCraft : IModApi
     /// DIRECT Postfix patch on XUiM_PlayerInventory.GetItemCount(int)
     /// This overload is used by the radial menu (ItemActionAttack.SetupRadial) to check ammo counts.
     /// Without this patch, radial menu shows ammo as greyed out even when available in containers.
+    /// 
+    /// ENHANCED SAFETY MODE: When enhancedSafetyCrafting is enabled, uses VirtualInventoryProvider.
     /// </summary>
     [HarmonyPatch(typeof(XUiM_PlayerInventory), nameof(XUiM_PlayerInventory.GetItemCount), new Type[] { typeof(int) })]
     [HarmonyPriority(Priority.Low)]
@@ -1099,7 +1123,24 @@ public class ProxiCraft : IModApi
 
             try
             {
-                int containerCount = ContainerManager.GetItemCount(Config, _itemId);
+                int containerCount;
+                
+                // ENHANCED SAFETY: Use VirtualInventoryProvider for centralized safety checks
+                if (Config.enhancedSafetyCrafting)
+                {
+                    var player = GameManager.Instance?.World?.GetPrimaryPlayer();
+                    if (player == null) return;
+                    
+                    int totalCount = VirtualInventoryProvider.GetTotalItemCount(player, _itemId);
+                    containerCount = totalCount - __result;
+                    if (containerCount < 0) containerCount = 0;
+                }
+                else
+                {
+                    // LEGACY: Direct ContainerManager access
+                    containerCount = ContainerManager.GetItemCount(Config, _itemId);
+                }
+                
                 if (containerCount > 0)
                 {
                     int oldResult = __result;
@@ -1194,6 +1235,8 @@ public class ProxiCraft : IModApi
     /// 
     /// BACKPACK COMPATIBILITY: This is a Postfix that only runs if inventory said "no".
     /// We check if containers can supplement what inventory is missing.
+    /// 
+    /// ENHANCED SAFETY MODE: When enhancedSafetyCrafting is enabled, uses VirtualInventoryProvider.
     /// </summary>
     [HarmonyPatch(typeof(XUiM_PlayerInventory), nameof(XUiM_PlayerInventory.HasItems))]
     [HarmonyPriority(Priority.Low)]
@@ -1212,6 +1255,20 @@ public class ProxiCraft : IModApi
 
             try
             {
+                var player = GameManager.Instance?.World?.GetPrimaryPlayer();
+                
+                // ENHANCED SAFETY: Use VirtualInventoryProvider for centralized safety checks
+                if (Config.enhancedSafetyCrafting && player != null)
+                {
+                    __result = VirtualInventoryProvider.HasAllItems(player, _itemStacks, _multiplier);
+                    if (__result)
+                    {
+                        LogDebug("HasItems satisfied via VirtualInventoryProvider");
+                    }
+                    return;
+                }
+                
+                // LEGACY: Direct ContainerManager access (original behavior)
                 // Get what inventory has (using standard interface - backpack mod compatible)
                 var inventoryItems = __instance.GetAllItemStacks();
                 
@@ -1266,6 +1323,9 @@ public class ProxiCraft : IModApi
     /// how much still needs to come from containers in Postfix.
     /// 
     /// CRITICAL: We must get RAW inventory counts (not patched GetItemCount which includes containers)
+    /// 
+    /// ENHANCED SAFETY MODE: When enhancedSafetyCrafting is enabled, uses VirtualInventoryProvider
+    /// for centralized item consumption with multiplayer safety checks.
     /// </summary>
     [HarmonyPatch(typeof(XUiM_PlayerInventory), nameof(XUiM_PlayerInventory.RemoveItems))]
     [HarmonyPriority(Priority.Low)]
@@ -1275,12 +1335,16 @@ public class ProxiCraft : IModApi
         private static IList<ItemStack> _pendingContainerRemovals;
         private static int _pendingMultiplier;
         private static Dictionary<int, int> _inventoryCountsBefore = new Dictionary<int, int>();
+        private static bool _useEnhancedSafety = false;
 
         [HarmonyPrefix]
         public static void Prefix(XUiM_PlayerInventory __instance, IList<ItemStack> _itemStacks, int _multiplier)
         {
             if (!Config?.modEnabled == true)
                 return;
+
+            // Check if Enhanced Safety is enabled
+            _useEnhancedSafety = Config.enhancedSafetyCrafting;
 
             // Store what's being requested for the Postfix
             _pendingContainerRemovals = _itemStacks;
@@ -1302,7 +1366,7 @@ public class ProxiCraft : IModApi
                     int toolbeltCount = __instance.Toolbelt?.GetItemCount(item.itemValue) ?? 0;
                     int rawInventoryCount = bagCount + toolbeltCount;
                     _inventoryCountsBefore[itemType] = rawInventoryCount;
-                    FileLog($"[REMOVEITEMS] Prefix: {item.itemValue.ItemClass?.GetItemName()} rawInv={rawInventoryCount} (bag={bagCount}, toolbelt={toolbeltCount}), need={item.count * _multiplier}");
+                    FileLog($"[REMOVEITEMS] Prefix: {item.itemValue.ItemClass?.GetItemName()} rawInv={rawInventoryCount} (bag={bagCount}, toolbelt={toolbeltCount}), need={item.count * _multiplier}, enhancedSafety={_useEnhancedSafety}");
                 }
             }
         }
@@ -1323,6 +1387,8 @@ public class ProxiCraft : IModApi
 
             try
             {
+                var player = GameManager.Instance?.World?.GetPrimaryPlayer();
+                
                 foreach (var required in _pendingContainerRemovals)
                 {
                     if (required == null || required.IsEmpty())
@@ -1344,7 +1410,22 @@ public class ProxiCraft : IModApi
                     
                     if (fromContainers > 0)
                     {
-                        int removed = ContainerManager.RemoveItems(Config, required.itemValue, fromContainers);
+                        int removed;
+                        
+                        // ENHANCED SAFETY: Use VirtualInventoryProvider
+                        if (_useEnhancedSafety && player != null)
+                        {
+                            // VirtualInventoryProvider.ConsumeItems handles bag->toolbelt->storage order
+                            // But inventory already removed from bag/toolbelt, so just remove from storage
+                            removed = ContainerManager.RemoveItems(Config, required.itemValue, fromContainers);
+                            FileLog($"[REMOVEITEMS] Enhanced safety: Removed {removed} from containers via ContainerManager");
+                        }
+                        else
+                        {
+                            // LEGACY: Direct ContainerManager access
+                            removed = ContainerManager.RemoveItems(Config, required.itemValue, fromContainers);
+                        }
+                        
                         LogDebug($"Removed {removed}/{fromContainers} {required.itemValue?.ItemClass?.GetItemName()} from containers (had {inventoryHadBefore} in inventory, needed {neededTotal})");
                         FileLog($"[REMOVEITEMS] Removed {removed} from containers");
                     }

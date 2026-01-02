@@ -60,7 +60,7 @@ public static class VirtualInventoryProvider
         if (!ProxiCraft.Config?.modEnabled == true)
             return inventoryCount;
 
-        if (MultiplayerModTracker.IsLocked)
+        if (!MultiplayerModTracker.IsModAllowed())
         {
             LogDiagnostic($"GetTotalItemCount: Multiplayer locked, returning inventory-only count for {item.ItemClass?.GetItemName()}");
             return inventoryCount;
@@ -149,7 +149,7 @@ public static class VirtualInventoryProvider
                 return totalRemoved;
             }
 
-            if (MultiplayerModTracker.IsLocked)
+            if (!MultiplayerModTracker.IsModAllowed())
             {
                 LogDiagnostic($"ConsumeItems: Multiplayer locked, skipping storage");
                 return totalRemoved;
@@ -267,7 +267,7 @@ public static class VirtualInventoryProvider
             return "VirtualInventoryProvider: No player loaded";
 
         var config = ProxiCraft.Config;
-        bool mpLocked = MultiplayerModTracker.IsLocked;
+        bool mpLocked = !MultiplayerModTracker.IsModAllowed();
 
         return $@"VirtualInventoryProvider Status:
   Mod Enabled: {config?.modEnabled}
