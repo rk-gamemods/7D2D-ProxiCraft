@@ -62,8 +62,8 @@ Multiplayer Commands:
 
 Performance Commands:
   pc perf          - Show brief performance status
-  pc perf on       - Enable profiling (collects timing data)
-  pc perf off      - Disable profiling
+  pc perf on       - Start profiling (collects timing data)
+  pc perf off      - Stop profiling
   pc perf reset    - Clear profiling data
   pc perf report   - Show detailed performance report
 
@@ -155,6 +155,11 @@ Examples:
                         GetSetting(_params[1]);
                     else
                         Output("Usage: pc get <setting>");
+                    break;
+
+                case "help":
+                case "?":
+                    Output(getHelp());
                     break;
 
                 default:

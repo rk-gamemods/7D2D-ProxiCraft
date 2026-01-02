@@ -510,6 +510,7 @@ Outputs:
   - Added `storagePriority` section to shipped config.json
 
 **Bug Fixes:**
+- Console command `pc help` now works correctly (was causing "unknown command" loop)
 - Vehicle repair with full inventory could lose repair kits - now checks inventory space before removing from storage
 - Fixed duplicate profiler timer calls for Vehicle/Drone counting (inflated call counts)
 - Removed obsolete `enableTraderSelling` from `pc config list` output

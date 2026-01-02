@@ -231,8 +231,10 @@ Press F1 to open the console, then type:
 [*][b]pc conflicts[/b] - Check for problems with other mods
 [*][b]pc toggle[/b] - Turn the mod on or off
 [*][b]pc refresh[/b] - Clear the container cache
+[*][b]pc help[/b] - Show all available commands
 [*][b]pc perf[/b] - Show performance status
-[*][b]pc perf on[/b] - Enable performance profiling
+[*][b]pc perf on[/b] - Start performance profiling
+[*][b]pc perf off[/b] - Stop performance profiling
 [*][b]pc perf report[/b] - Show detailed timing report
 [/list]
 
@@ -279,6 +281,7 @@ If you find a mod conflict, please report it so we can update this list.
 
 [u]Bug Fixes:[/u]
 [list]
+[*]Console command [b]pc help[/b] now works correctly (was causing "unknown command" loop)
 [*]Vehicle repair with full inventory could lose repair kits - now checks inventory space before removing from storage
 [*]Fixed duplicate profiler timer calls for Vehicle/Drone counting (was inflating call count statistics)
 [*]Removed obsolete enableTraderSelling from pc config list output (feature is always enabled)
