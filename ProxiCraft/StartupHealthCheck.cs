@@ -450,47 +450,25 @@ public static class StartupHealthCheck
             AddResult("RecipeTracker", "Recipe tracker live updates", HealthStatus.Disabled, "Disabled in config");
         }
 
-        // Trader Selling
-        if (config.enableTraderSelling)
-        {
-            var sellActivated = AccessTools.Method(typeof(ItemActionEntrySell), "OnActivated");
-            var sellRefresh = AccessTools.Method(typeof(ItemActionEntrySell), "RefreshEnabled");
-            if (sellActivated != null && sellRefresh != null)
-            {
-                AddResult("TraderSelling", "Selling items from containers", HealthStatus.OK,
-                    "ItemActionEntrySell methods validated");
-            }
-            else
-            {
-                AddResult("TraderSelling", "Selling items from containers", HealthStatus.Failed,
-                    "ItemActionEntrySell methods not found",
-                    $"OnActivated: {(sellActivated != null ? "OK" : "MISSING")}, RefreshEnabled: {(sellRefresh != null ? "OK" : "MISSING")}");
-            }
-        }
-        else
-        {
-            AddResult("TraderSelling", "Selling items from containers", HealthStatus.Disabled, "Disabled in config");
-        }
-
         // Locked Slot Respect
         if (config.respectLockedSlots)
         {
             // Check if PackedBoolArray exists (used for SlotLocks)
             var packedBoolType = AccessTools.TypeByName("PackedBoolArray");
-            // Check if TEFeatureStorage has SlotLocks
+            // Check if TEFeatureStorage has SlotLocks property
             var storageType = AccessTools.TypeByName("TEFeatureStorage");
-            var slotLocksField = storageType != null ? AccessTools.Field(storageType, "SlotLocks") : null;
+            var slotLocksProp = storageType?.GetProperty("SlotLocks");
 
-            if (packedBoolType != null && slotLocksField != null)
+            if (packedBoolType != null && slotLocksProp != null)
             {
                 AddResult("LockedSlots", "Respect locked slots", HealthStatus.OK,
-                    "SlotLocks field validated - locked slots will be skipped");
+                    "SlotLocks property validated - locked slots will be skipped");
             }
             else if (packedBoolType != null)
             {
                 AddResult("LockedSlots", "Respect locked slots", HealthStatus.Degraded,
-                    "PackedBoolArray found but SlotLocks field not found - may not work for all containers",
-                    $"TEFeatureStorage: {(storageType != null ? "found" : "missing")}, SlotLocks: {(slotLocksField != null ? "found" : "missing")}");
+                    "PackedBoolArray found but SlotLocks property not found - may not work for all containers",
+                    $"TEFeatureStorage: {(storageType != null ? "found" : "missing")}, SlotLocks: {(slotLocksProp != null ? "found" : "missing")}");
             }
             else
             {
@@ -1106,7 +1084,7 @@ public static class StartupHealthCheck
             { "Crafting", Results.Where(r => r.FeatureId.Contains("Craft") || r.FeatureId == "Repair" || r.FeatureId == "RecipeTracker").ToList() },
             { "Reload", Results.Where(r => r.FeatureId == "Reload" || r.FeatureId == "HudAmmoCounter").ToList() },
             { "Refuel", Results.Where(r => r.FeatureId.Contains("Refuel")).ToList() },
-            { "Trader", Results.Where(r => r.FeatureId == "Trader" || r.FeatureId == "TraderSelling").ToList() },
+            { "Trader", Results.Where(r => r.FeatureId == "Trader").ToList() },
             { "Quests", Results.Where(r => r.FeatureId == "Quests").ToList() },
             { "Painting", Results.Where(r => r.FeatureId == "Painting").ToList() },
             { "Other Features", Results.Where(r => r.FeatureId == "Lockpicking" || r.FeatureId == "ItemRepair" || 
