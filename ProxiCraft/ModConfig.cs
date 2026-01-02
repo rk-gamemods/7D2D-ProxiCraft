@@ -112,8 +112,61 @@ public class ModConfig
     /// <summary>Enable real-time recipe tracker updates when container items change</summary>
     public bool enableRecipeTrackerUpdates = true;
 
+    // ===========================================    // EXPERIMENTAL FEATURES - Enhanced Safety Mode
     // ===========================================
-    // MULTIPLAYER SAFETY - Crash prevention
+    // These features implement the "Count Spoofing" / SCVI architecture.
+    // They are designed to improve multiplayer stability but are NOT required
+    // for single-player use. All default to FALSE - when disabled, the mod
+    // works exactly as it did before these features were added.
+    //
+    // TECHNICAL: "Enhanced Safety" is the user-facing name for what's internally
+    // called "Count Spoofing" or "SCVI" (Subsystem-Centric Virtual Inventory).
+    // ===========================================
+
+    /// <summary>
+    /// WARNING: These features are EXPERIMENTAL. Not needed for single-player.
+    /// Enable only if experiencing crashes in multiplayer.
+    /// When all flags are false, the mod works exactly as before.
+    /// </summary>
+    public string experimentalFeatures_WARNING = "EXPERIMENTAL - Enable only if needed for multiplayer stability";
+
+    /// <summary>
+    /// Use enhanced safety mode for crafting operations.
+    /// When enabled, uses VirtualInventoryProvider for safer item consumption.
+    /// </summary>
+    public bool enhancedSafetyCrafting = false;
+
+    /// <summary>
+    /// Use enhanced safety mode for reload operations.
+    /// When enabled, uses VirtualInventoryProvider for safer ammo consumption.
+    /// </summary>
+    public bool enhancedSafetyReload = false;
+
+    /// <summary>
+    /// Use enhanced safety mode for block repair/upgrade operations.
+    /// When enabled, uses VirtualInventoryProvider for safer material consumption.
+    /// </summary>
+    public bool enhancedSafetyRepair = false;
+
+    /// <summary>
+    /// Use enhanced safety mode for vehicle repair operations.
+    /// When enabled, uses VirtualInventoryProvider for safer repair kit consumption.
+    /// </summary>
+    public bool enhancedSafetyVehicle = false;
+
+    /// <summary>
+    /// Use enhanced safety mode for refueling operations (vehicles and generators).
+    /// When enabled, uses VirtualInventoryProvider for safer fuel consumption.
+    /// </summary>
+    public bool enhancedSafetyRefuel = false;
+
+    /// <summary>
+    /// Enable diagnostic logging for enhanced safety features.
+    /// Writes detailed logs to help debug issues with experimental features.
+    /// </summary>
+    public bool enhancedSafetyDiagnosticLogging = false;
+
+    // ===========================================    // MULTIPLAYER SAFETY - Crash prevention
     // ===========================================
 
     /// <summary>
