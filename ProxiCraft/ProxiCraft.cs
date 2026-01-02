@@ -1735,7 +1735,23 @@ public class ProxiCraft : IModApi
                     return;
 
                 var fuelItem = ItemClass.GetItem(fuelItemName, false);
-                int containerCount = ContainerManager.GetItemCount(Config, fuelItem);
+                
+                int containerCount;
+                if (Config.enhancedSafetyRefuel)
+                {
+                    // Enhanced Safety mode: Check multiplayer safety first
+                    if (!MultiplayerModTracker.IsModAllowed())
+                    {
+                        LogDebug($"hasGasCan (enhanced): MP locked, skipping storage check");
+                        return;
+                    }
+                    containerCount = ContainerManager.GetItemCount(Config, fuelItem);
+                }
+                else
+                {
+                    // Legacy mode: Direct ContainerManager access
+                    containerCount = ContainerManager.GetItemCount(Config, fuelItem);
+                }
                 
                 if (containerCount > 0)
                 {
@@ -1805,7 +1821,23 @@ public class ProxiCraft : IModApi
         if (removed < count)
         {
             int remaining = count - removed;
-            int containerRemoved = ContainerManager.RemoveItems(Config, item, remaining);
+            
+            int containerRemoved;
+            if (Config.enhancedSafetyRefuel)
+            {
+                // Enhanced Safety mode: Check multiplayer safety first
+                if (!MultiplayerModTracker.IsModAllowed())
+                {
+                    LogDebug($"DecItemForRefuel (enhanced): MP locked, skipping storage");
+                    return removed;
+                }
+                containerRemoved = ContainerManager.RemoveItems(Config, item, remaining);
+            }
+            else
+            {
+                // Legacy mode: Direct ContainerManager access
+                containerRemoved = ContainerManager.RemoveItems(Config, item, remaining);
+            }
             LogDebug($"Removed {containerRemoved} fuel from containers");
             removed += containerRemoved;
         }
