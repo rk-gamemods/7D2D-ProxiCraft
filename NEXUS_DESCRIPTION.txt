@@ -128,6 +128,14 @@ Edit [b]config.json[/b] in the mod folder to change settings:
   "pullFromWorkstationOutputs": true,
   "allowLockedContainers": true,
   
+  "storagePriority": {
+    "Drone": "1",
+    "DewCollector": "2",
+    "Workstation": "3",
+    "Container": "4",
+    "Vehicle": "5"
+  },
+  
   "enableForCrafting": true,
   "enableForQuests": true,
   "enableForRepairAndUpgrade": true,
@@ -158,6 +166,11 @@ Edit [b]config.json[/b] in the mod folder to change settings:
 [*][b]pullFromDewCollectors[/b] - Include water from dew collectors
 [*][b]pullFromWorkstationOutputs[/b] - Include items from forge/workbench output slots (NOT input/fuel slots)
 [*][b]allowLockedContainers[/b] - Use items from password-locked containers you have access to
+[/list]
+
+[b]Storage Priority[/b]
+[list]
+[*][b]storagePriority[/b] - Controls which storage types are searched first. Lower numbers = checked first. Default order: Drone (1) → Dew Collector (2) → Workstation (3) → Container (4) → Vehicle (5). Items are pulled from the first available source.
 [/list]
 
 [b]Feature Toggles[/b]
@@ -258,18 +271,17 @@ If you find a mod conflict, please report it so we can update this list.
 
 [u]New Features:[/u]
 [list]
-[*][b]Configurable Storage Priority[/b] - Control which storage types are used first (Drone → Dew Collector → Workstation → Container → Vehicle)
+[*][b]Multiplayer Safety Lock[/b] - Auto-detects servers without ProxiCraft and disables mod to prevent crashes. Console opens automatically with clear warning and fix instructions.
+[*][b]Configurable Storage Priority[/b] - Control search order via storagePriority config section (Drone → Dew Collector → Workstation → Container → Vehicle)
 [*][b]Fuzzy Config Matching[/b] - Typos in config keys like "workstaion" auto-correct to "Workstation"
-[*][b]Multiplayer Safety Lock[/b] - Mod auto-disables on servers without ProxiCraft to prevent CTD
-[*][b]Server Detection Notice[/b] - Warns if connecting to incompatible server
 [*]Added storagePriority section to shipped config.json
 [/list]
 
 [u]Bug Fixes:[/u]
 [list]
 [*]Vehicle repair with full inventory could lose repair kits - now checks inventory space before removing from storage
-[*]Fixed duplicate profiler timer calls for Vehicle/Drone counting
-[*]Removed obsolete enableTraderSelling from pc config list output
+[*]Fixed duplicate profiler timer calls for Vehicle/Drone counting (was inflating call count statistics)
+[*]Removed obsolete enableTraderSelling from pc config list output (feature is always enabled)
 [/list]
 
 [b]v1.2.0 - Features & Bug Fixes[/b]
@@ -306,17 +318,24 @@ If you find a mod conflict, please report it so we can update this list.
 
 [size=4][b]Multiplayer[/b][/size]
 
-[b]IMPORTANT:[/b] Install ProxiCraft on BOTH client AND server for multiplayer games.
+[b]IMPORTANT:[/b] ProxiCraft must be installed on BOTH client AND server for multiplayer games.
 
-[u]If only the client has ProxiCraft:[/u]
+[u]If server doesn't have ProxiCraft:[/u]
 [list]
-[*]Server doesn't know about items in containers
-[*]Crafting/reloading may fail or cause crashes (CTD)
-[*]Client and server state will desync
+[*]Mod automatically detects incompatible server on connection
+[*]ProxiCraft disables itself to prevent crashes
+[*]Console opens automatically showing warning:
+  [i]"Server does not have ProxiCraft installed. ProxiCraft has been DISABLED to prevent crashes."[/i]
+[*]Warning includes fix instructions (install on server OR switch to server's container mod)
 [/list]
 
-[u]Multiplayer Safety Lock (v1.2.1+):[/u]
-ProxiCraft automatically detects if the server doesn't have it installed. When this happens, the mod [b]disables itself[/b] to prevent crashes, and shows a notice in the console with recommendations.
+[u]Why this is necessary:[/u]
+[list]
+[*]Client sees items in nearby containers
+[*]Server without ProxiCraft doesn't know about those items
+[*]Attempting to use items causes state mismatch → crash to desktop
+[*]Safety lock prevents this by auto-disabling when incompatible
+[/list]
 
 [u]Mod Conflicts in Multiplayer:[/u]
 Do NOT mix different container mods between client and server:
