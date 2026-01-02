@@ -2,9 +2,9 @@
 BRIEF OVERVIEW (350 character limit)
 ================================================================================
 
-Stop searching through storage boxes for crafting ingredients. ProxiCraft automatically pulls items from nearby containers for crafting, reloading, refueling, and repairs. Features unique Virtual Inventory architecture for EXPERIMENTAL multiplayer support with zero-crash protection.
+Use items from nearby storage for crafting, reloading, refueling, and repairs. Searches containers, vehicles, drones, and workstations. Includes EXPERIMENTAL multiplayer support with automatic safety protection.
 
-Character count: 296
+Character count: 213
 
 ================================================================================
 DETAILED DESCRIPTION (BBCode)
@@ -12,162 +12,134 @@ DETAILED DESCRIPTION (BBCode)
 
 [size=4][b]What Does This Mod Do?[/b][/size]
 
-ProxiCraft lets you use items stored in nearby containers for:
+ProxiCraft lets you use items stored in nearby containers without moving them to your backpack first.
+
+[b]Single-Player Features (Stable):[/b]
 [list]
-[*]Crafting recipes
-[*]Reloading weapons
-[*]Refueling vehicles and generators
-[*]Repairing and upgrading blocks
-[*]Buying from traders
-[*]Painting blocks
-[*]Lockpicking locked containers
-[*]Repairing weapons and tools
+[*]Crafting - Use materials from nearby storage
+[*]Block Repair/Upgrade - Pull repair materials from containers
+[*]Weapon Reload - Reload with ammo from containers
+[*]Vehicle Refuel - Use gas cans from storage
+[*]Generator Refuel - Refuel generators from nearby containers
+[*]Item Repair - Use repair kits from containers
+[*]Lockpicking - Use lockpicks from storage
+[*]Painting - Use paint cans from containers
+[*]Trader Purchases - Pay with dukes from storage
+[*]Challenge Tracker - Container items count toward "Gather X" challenges
+[*]HUD Ammo Counter - Shows container ammo in weapon stat bar
+[*]Recipe Tracker - Real-time ingredient counts from containers
+[*]Locked Slot Respect - Items in locked slots are excluded
 [/list]
 
 [b]Storage Sources:[/b]
 [list]
-[*]Standard storage containers (chests, boxes, crates)
+[*]Standard containers (chests, boxes, crates)
 [*]Vehicle storage (4x4, motorcycle, gyrocopter, minibike)
 [*]Drone cargo compartment
 [*]Dew collector contents
 [*]Workstation output slots (forge, workbench, campfire, chemistry station)
 [/list]
 
-You no longer need to move items to your backpack first. If the item is in a container within range, the game will use it automatically.
-
 [line]
 
-[size=4][b]🧪 EXPERIMENTAL: Multiplayer Support[/b][/size]
+[size=4][b]🧪 Multiplayer (EXPERIMENTAL)[/b][/size]
 
-ProxiCraft v1.2.1 introduces experimental multiplayer support with a unique architecture:
+ProxiCraft includes experimental multiplayer support with automatic crash protection.
 
-[b]Virtual Inventory System[/b]
+[b]Requirements:[/b] Must be installed on BOTH server AND all clients (same version).
 
-Unlike traditional mods that patch individual game methods, ProxiCraft uses a [b]centralized Virtual Inventory Provider[/b] - a single class that ALL storage-aware operations flow through.
+[b]How It Works - "Guilty Until Proven Innocent":[/b]
 
 [code]
 ┌─────────────────────────────────────────────────────────────┐
-│ Virtual Inventory Provider (Central Hub)                    │
+│ Multiplayer Safety Flow                                     │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  Crafting ──┐                                               │
-│  Reload ────┼──→ VirtualInventoryProvider ◄── MP Safety    │
-│  Refuel ────┘              │                                │
-│                            ▼                                │
-│              ┌─────────────────────────┐                    │
-│              │ Bag │ Toolbelt │ Storage│                    │
-│              └─────────────────────────┘                    │
+│  Client connects to server                                  │
+│  ├─ multiplayerImmediateLock = true? (default)              │
+│  │   └─ YES → IMMEDIATE LOCK (storage disabled) ↓           │
+│  │                                                          │
+│  │   Server sends handshake request                         │
+│  │   ├─ Client responds (has ProxiCraft)?                   │
+│  │   │   └─ YES → UNLOCK → Normal operation ✓               │
+│  │   └─ NO response after timeout?                          │
+│  │       └─ STAY LOCKED + show culprit name ✗               │
+│  │                                                          │
+│  └─ NO → Trust mode (honor system) ⚠️                       │
+│      └─ No lock, relies on all players having mod           │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 [/code]
 
-[b]Why This Matters:[/b]
+[b]Safety Features:[/b]
 [list]
-[*][b]Single Point of Control[/b] - All storage access flows through one class
-[*][b]Consistent Safety Checks[/b] - Multiplayer validation happens in ONE place
-[*][b]Bug Fixes Apply Globally[/b] - Fix a bug once, it's fixed everywhere
-[*][b]Zero Crash Window[/b] - Storage access is blocked instantly when unsafe
+[*][b]Immediate Lock[/b] - Storage access blocked instantly when any client connects (zero crash window)
+[*][b]Quick Unlock[/b] - Resumes in ~100-300ms after verifying client has mod installed
+[*][b]Culprit Identification[/b] - Shows exactly which player needs to install the mod
+[*][b]Auto Re-enable[/b] - Mod unlocks when the player without ProxiCraft disconnects
+[*][b]Server Config Sync[/b] - Clients automatically use server's settings (range, features, priority)
 [/list]
 
-[b]"Guilty Until Proven Innocent" Protection[/b]
+[b]Safety Settings (config.json):[/b]
+[code]
+{
+  "multiplayerImmediateLock": true,
+  "multiplayerHandshakeTimeoutSeconds": 10
+}
+[/code]
 
-When ANY client connects:
+[list]
+[*][b]multiplayerImmediateLock[/b] (default: true) - Lock mod when clients connect. Set to [b]false[/b] to disable safety lock entirely (honor system - NOT RECOMMENDED except on moderated servers where you enforce mod installation externally).
+[*][b]multiplayerHandshakeTimeoutSeconds[/b] (default: 10) - How long to wait before declaring a player doesn't have the mod.
+[/list]
+
+⚠️ [b]WARNING:[/b] Setting [b]multiplayerImmediateLock=false[/b] removes crash protection. If ANY player joins without ProxiCraft, the server may crash. Only use on servers where you control who joins.
+
+[b]Testing Status:[/b]
+[list]
+[*]Single player ✓
+[*]Basic dedicated server ✓
+[*]Co-op hosting ⚠️ (needs more testing)
+[*]High-latency connections ⚠️ (needs more testing)
+[*]Large player counts (8+) ⚠️ (needs more testing)
+[/list]
+
+[b]🐛 Please Report Bugs![/b] Multiplayer has many edge cases. If you encounter issues:
 [list=1]
-[*][b]IMMEDIATE LOCK[/b] - Storage access blocked instantly (zero crash window)
-[*][b]Verification Handshake[/b] - Client must prove they have ProxiCraft
-[*][b]Unlock on Success[/b] - Once verified (~100-300ms), normal operation resumes
-[*][b]Culprit Identification[/b] - If verification fails, the player without the mod is identified by name
+[*]Run [b]pc fullcheck[/b] in console
+[*]Copy the output
+[*]Report on GitHub or Nexus comments
 [/list]
 
-No crashes during verification. No guessing who needs the mod. Auto-enables when problematic player disconnects.
-
-[b]Experimental Status:[/b] This feature works well in testing but multiplayer has many edge cases. Report issues with [b]pc fullcheck[/b] output.
-
-[line]
-
-[size=4][b]How Is This Different From Similar Mods?[/b][/size]
-
-ProxiCraft was inspired by [url=https://www.nexusmods.com/7daystodie/mods/2196]Craft From Containers by aedenthorn[/url]. If you want the original, check out their mod.
-
-ProxiCraft is a complete rewrite with a different architecture:
-
-[b]Less Likely to Conflict[/b]
-[list]
-[*][b]Low-Priority Patches[/b] - All patches use Harmony Priority.Low, so other mods run first. We add to their results instead of fighting them.
-[*][b]Additive Design[/b] - We add container items to inventory queries. We never replace or override what other mods do.
-[*][b]Postfix Over Transpiler[/b] - We use less invasive patch types when possible. Transpilers break easily; postfixes don't.
-[/list]
-
-[b]More Stable[/b]
-[list]
-[*][b]SafePatcher System[/b] - Every patch is wrapped in error handling. If something fails, that feature is disabled instead of crashing your game.
-[*][b]Graceful Degradation[/b] - If a game update changes something, the mod adapts. Features that can't work are turned off automatically.
-[*][b]Null Safety[/b] - Defensive coding throughout. No crashes from unexpected game states.
-[/list]
-
-[b]More Features[/b]
-[list]
-[*][b]Challenge Tracker Integration[/b] - Container items count toward "Gather X" quests. This is not available in other versions.
-[*][b]Virtual Inventory Architecture[/b] - Centralized, multiplayer-safe storage access
-[*][b]Expanded Storage Sources[/b] - Pull from vehicles, drones, dew collectors, and workstation outputs
-[*][b]Painting Support[/b] - Use paint cans from storage with the paint brush tool
-[*][b]Lockpicking Support[/b] - Use lockpicks stored in nearby containers
-[*][b]Generator Refuel[/b] - Refuel generators and power sources from nearby storage
-[*][b]Item Repair[/b] - Repair weapons and tools using repair kits from containers
-[*][b]Balanced Default Range[/b] - 15 blocks by default instead of unlimited. Better for gameplay balance.
-[*][b]Per-Feature Control[/b] - Enable or disable crafting, reloading, refueling, and trading separately.
-[*][b]Console Diagnostics[/b] - Run [b]pc status[/b], [b]pc test[/b], [b]pc conflicts[/b] to troubleshoot issues.
-[*][b]Container Caching[/b] - Performance optimized. Limits scanning to 10 times per second max.
-[*][b]Startup Health Check[/b] - Validates all features when the game loads. Silent when everything works, warns you if features break.
-[*][b]Auto-Adaptation[/b] - Mod attempts to survive game updates by finding renamed methods automatically.
-[/list]
-
-[b]Important:[/b] Use only ONE craft-from-containers mod. Remove CraftFromContainers or similar mods before using ProxiCraft.
-
-[line]
-
-[size=4][b]Requirements[/b][/size]
-
-[list]
-[*]7 Days to Die V2.5 (tested). Older versions may work but are untested.
-[*]EAC must be disabled (required for all DLL mods)
-[*]No other dependencies
-[/list]
+Your reports help make multiplayer stable for everyone!
 
 [line]
 
 [size=4][b]Installation[/b][/size]
 
 [list=1]
-[*]Back up your save files before installing any mod
-[*]Download the file and extract the zip
-[*]Copy the [b]ProxiCraft[/b] folder to your [b]7 Days To Die/Mods/[/b] folder
-[*]You should have: [b]Mods/ProxiCraft/ProxiCraft.dll[/b]
-[*]Launch the game with EAC disabled
+[*]Download and extract the zip
+[*]Copy [b]ProxiCraft[/b] folder to [b]7 Days To Die/Mods/[/b]
+[*]Launch game with EAC disabled
 [/list]
 
-To disable EAC: Right-click the game in Steam > Properties > General. In the [b]Select Launch Option[/b] dropdown, choose [b]Launch Game without EAC[/b].
-
-To uninstall: Delete the [b]Mods/ProxiCraft/[/b] folder.
+[b]Multiplayer:[/b] Install on server AND all clients (same version).
 
 [line]
 
 [size=4][b]Configuration[/b][/size]
 
-Edit [b]config.json[/b] in the mod folder to change settings:
+Edit [b]config.json[/b] in the mod folder:
 
 [code]
 {
   "modEnabled": true,
-  "isDebug": false,
-  "verboseHealthCheck": false,
   "range": 15,
   
   "pullFromVehicles": true,
   "pullFromDrones": true,
   "pullFromDewCollectors": true,
   "pullFromWorkstationOutputs": true,
-  "allowLockedContainers": true,
   
   "storagePriority": {
     "Drone": "1",
@@ -178,241 +150,90 @@ Edit [b]config.json[/b] in the mod folder to change settings:
   },
   
   "enableForCrafting": true,
-  "enableForQuests": true,
-  "enableForRepairAndUpgrade": true,
-  "enableForLockpicking": true,
-  "enableForItemRepair": true,
-  "enableForPainting": true,
-  
   "enableForReload": true,
   "enableForRefuel": true,
   "enableForTrader": true,
-  "enableForGeneratorRefuel": true,
-  
-  "enableHudAmmoCounter": true,
-  "enableRecipeTrackerUpdates": true,
   "respectLockedSlots": true
 }
 [/code]
 
-[b]Range Settings[/b]
-[list]
-[*][b]range[/b] - How far to search for containers (in blocks). Default is 15, which covers a typical base floor. Set to -1 for unlimited (searches all loaded chunks, may cause lag). Set higher if you have a large base.
-[/list]
+[b]Range:[/b] 5 (same room), 15 (same floor - default), 30 (building), -1 (unlimited)
 
-[b]Storage Source Toggles[/b]
-[list]
-[*][b]pullFromVehicles[/b] - Include vehicle storage (4x4, motorcycle, etc.)
-[*][b]pullFromDrones[/b] - Include drone cargo compartment
-[*][b]pullFromDewCollectors[/b] - Include water from dew collectors
-[*][b]pullFromWorkstationOutputs[/b] - Include items from forge/workbench output slots (NOT input/fuel slots)
-[*][b]allowLockedContainers[/b] - Use items from password-locked containers you have access to
-[/list]
+[b]Storage Priority:[/b] Lower number = checked first. Items pulled from first available source.
 
-[b]Storage Priority[/b]
-[list]
-[*][b]storagePriority[/b] - Controls which storage types are searched first. Lower numbers = checked first. Default order: Drone (1) → Dew Collector (2) → Workstation (3) → Container (4) → Vehicle (5). Items are pulled from the first available source.
-[/list]
-
-[b]Feature Toggles[/b]
-[list]
-[*][b]enableForCrafting[/b] - Use materials from containers for crafting
-[*][b]enableForQuests[/b] - Count container items toward "Gather X" challenge objectives
-[*][b]enableForRepairAndUpgrade[/b] - Pull materials from containers when repairing or upgrading blocks
-[*][b]enableForLockpicking[/b] - Use lockpicks stored in nearby containers
-[*][b]enableForItemRepair[/b] - Repair weapons/tools using repair kits from containers
-[*][b]enableForPainting[/b] - Use paint from containers with paint brush
-[*][b]enableForReload[/b] - Pull ammo from containers when reloading weapons
-[*][b]enableForRefuel[/b] - Pull gas cans from containers when refueling vehicles
-[*][b]enableForTrader[/b] - Use dukes from containers when buying from traders
-[*][b]enableForGeneratorRefuel[/b] - Refuel generators from nearby storage
-[/list]
-
-[b]Display Features[/b]
-[list]
-[*][b]enableHudAmmoCounter[/b] - Show container ammo count in the weapon's HUD stat bar
-[*][b]enableRecipeTrackerUpdates[/b] - Update recipe tracker ingredient counts in real-time from containers
-[*][b]respectLockedSlots[/b] - Skip items in user-locked container slots (items you've locked won't be used)
-[/list]
-
-[line]
-
-[size=4][b]Design Decisions[/b][/size]
-
-[b]Workstation Output Slots Only[/b]
-
-When pulling items from workstations (forge, workbench, chemistry station, campfire), ProxiCraft [b]only counts OUTPUT slots[/b]. Input, fuel, and tool slots are intentionally ignored.
-
-[b]Why?[/b]
-[list]
-[*][b]Output slots[/b] - Finished products ready to use ✓
-[*][b]Input slots[/b] - Items actively being processed/consumed ✗
-[*][b]Fuel slots[/b] - Fuel is being burned, not available ✗
-[*][b]Tool slots[/b] - Tools are in use (anvil, beaker, etc.) ✗
-[/list]
-
-[b]Virtual Inventory Architecture[/b]
-
-All storage-aware operations flow through a central [b]VirtualInventoryProvider[/b] class:
-[list]
-[*][b]Centralizes multiplayer safety[/b] - One place to gate all storage access
-[*][b]Ensures consistency[/b] - All features use the same counting/consumption logic
-[*][b]Simplifies debugging[/b] - Problems traced to one location
-[*][b]Enables global fixes[/b] - Fix a bug once, fixed everywhere
-[/list]
+See [url=https://github.com/rk-gamemods/7D2D-ProxiCraft]GitHub[/url] for full configuration options.
 
 [line]
 
 [size=4][b]Console Commands[/b][/size]
 
-Press F1 to open the console, then type:
+Press F1, then type:
 [list]
-[*][b]pc status[/b] - Check if the mod is working
-[*][b]pc health[/b] - Show startup health check results
-[*][b]pc test[/b] - See what containers the mod can find
-[*][b]pc diag[/b] - Full diagnostic report
-[*][b]pc fullcheck[/b] - Full diagnostic report for bug reports
-[*][b]pc conflicts[/b] - Check for problems with other mods
-[*][b]pc toggle[/b] - Turn the mod on or off
-[*][b]pc refresh[/b] - Clear the container cache
-[*][b]pc help[/b] - Show all available commands
-[*][b]pc perf[/b] - Show performance status
-[*][b]pc perf on[/b] - Start performance profiling
-[*][b]pc perf off[/b] - Stop performance profiling
-[*][b]pc perf report[/b] - Show detailed timing report
+[*][b]pc status[/b] - Check if mod is working
+[*][b]pc health[/b] - Show feature health check
+[*][b]pc test[/b] - See what containers are found
+[*][b]pc fullcheck[/b] - Full diagnostic for bug reports
+[*][b]pc toggle[/b] - Enable/disable mod
+[*][b]pc set range 30[/b] - Change settings
 [/list]
 
 [line]
 
-[size=4][b]🧪 Multiplayer (EXPERIMENTAL)[/b][/size]
+[size=4][b]Compatibility[/b][/size]
 
-[b]IMPORTANT:[/b] ProxiCraft must be installed on BOTH client AND server for multiplayer games.
+ProxiCraft is compatible with most mods.
 
-[b]Private/Co-op Games:[/b] If one player hosts (not a dedicated server), the hosting player IS the server. ALL players must have ProxiCraft installed.
-
-[u]Virtual Inventory Protection:[/u]
-
-ProxiCraft's unique Virtual Inventory architecture provides automatic protection:
-[list]
-[*][b]IMMEDIATE LOCK[/b] - Storage access blocked the instant ANY client connects
-[*][b]Zero Crash Window[/b] - No vulnerability during verification
-[*][b]Culprit Identification[/b] - Shows exactly which player needs the mod
-[*][b]Auto Re-enable[/b] - Mod enables again when problematic player disconnects
-[/list]
-
-[u]Server Config Sync:[/u]
-When joining a server, [b]your local settings are automatically overridden[/b] with the server's settings (range, features, priority). This prevents desync issues.
-
-[u]Experimental Status:[/u]
-This feature is marked experimental because multiplayer has many edge cases. Report issues with [b]pc fullcheck[/b] output.
-
-[line]
-
-[size=4][b]Mod Compatibility[/b][/size]
-
-[b]Tested Compatible:[/b]
-[list]
-[*]AGF HUDPlus
-[*]AGF Backpack 72 Slots
-[*]TechFreqs 144-Slot Backpack
-[/list]
-
-[b]Known Conflicts (do not use together):[/b]
+[b]Do NOT use with other craft-from-containers mods:[/b]
 [list]
 [*]CraftFromContainers
-[*]CraftFromContainersPlus
-[*]CraftFromChests
-[*]PullFromContainers
-[*]Other "craft from containers" type mods
+[*]BeyondStorage2
+[*]Similar "nearby storage" mods
 [/list]
 
-If you find a mod conflict, please report it so we can update this list.
+Use only ONE mod of this type.
 
 [line]
 
 [size=4][b]Changelog[/b][/size]
 
-[b]v1.2.1 - Virtual Inventory Architecture & Multiplayer Safety[/b]
-
-[u]New Features:[/u]
+[b]v1.2.1[/b]
 [list]
-[*][b]🧪 EXPERIMENTAL Multiplayer Support[/b] with unique Virtual Inventory architecture
-  - Centralized [b]VirtualInventoryProvider[/b] - ALL storage operations flow through one class
-  - Single point of control for multiplayer safety checks
-  - Bug fixes apply globally across all features
-[*][b]Zero-Crash Multiplayer Protection[/b] - "Guilty Until Proven Innocent" approach
-  - [b]IMMEDIATE LOCK[/b] when ANY client connects (zero crash window)
-  - Mod unlocks only after client proves they have ProxiCraft (~100-300ms)
-  - Culprit identification - clearly shows which player needs the mod
-  - Auto-re-enables when offending player disconnects
-[*][b]Server Config Sync[/b] - Clients automatically use server's settings
-  - Prevents desync where players see different items
-  - Differences logged when settings change
-[*][b]Configurable Storage Priority[/b] - Control search order (Drone → DewCollector → Workstation → Container → Vehicle)
+[*]🧪 EXPERIMENTAL Multiplayer support with automatic safety protection
+[*]Server config sync - clients use server's settings
+[*]Configurable storage priority
+[*]Bug fixes for pc help, vehicle repair, profiler
 [/list]
 
-[u]Bug Fixes:[/u]
+[b]v1.2.0[/b]
 [list]
-[*]Console command [b]pc help[/b] now works correctly (was causing "unknown command" loop)
-[*]Vehicle repair with full inventory could lose repair kits - now checks inventory space first
-[*]Fixed duplicate profiler timer calls (inflated statistics)
+[*]HUD ammo counter
+[*]Locked slot respect
+[*]Fixed reload, upgrade, and workstation bugs
 [/list]
 
-[b]v1.2.0 - Features & Bug Fixes[/b]
-
-[u]New Features:[/u]
+[b]v1.1.0[/b]
 [list]
-[*][b]HUD Ammo Counter[/b] - Shows container ammo in the weapon stat bar
-[*][b]Locked Slot Respect[/b] - Items in user-locked container slots are excluded from all operations
+[*]Vehicle, drone, dew collector, workstation support
+[*]Recipe tracker updates
+[*]Performance optimizations
 [/list]
 
-[u]Bug Fixes:[/u]
-[list]
-[*]Radial menu reload - ammo greyed out when only in nearby containers [i](reported by falkon311)[/i]
-[*]R-key reload blocked when ammo only in containers [i](reported by falkon311)[/i]
-[*]Block upgrades not consuming materials from nearby containers [i](reported by falkon311)[/i]
-[*]Workstation output items counted but not consumed - crafting exploit [i](reported by Kaizlin)[/i]
-[*]"Take Like" button taking all container contents instead of matching items [i](reported by Kaizlin)[/i]
-[/list]
-
-[b]v1.1.0 - Expanded Storage Sources[/b]
-[list]
-[*][b]Vehicle Storage[/b] - Pull items from minibike, motorcycle, 4x4, and gyrocopter storage
-[*][b]Drone Storage[/b] - Use items stored in your drone's cargo compartment
-[*][b]Dew Collectors[/b] - Water from dew collectors now available for crafting/recipes
-[*][b]Workstation Outputs[/b] - Finished items in forge, workbench, campfire, and chemistry station output slots
-[*][b]Recipe Tracker Updates[/b] - Real-time ingredient counts from containers
-[*][b]Performance Profiler[/b] - New `pc perf` commands to diagnose performance issues
-[*][b]Performance Optimizations[/b] - Reduced CPU overhead with optimized distance checks
-[/list]
-
-[b]v1.0.0 - Initial Public Release[/b]
+[b]v1.0.0[/b] - Initial release
 
 [line]
 
-[size=4][b]Disclaimer[/b][/size]
+[size=4][b]Links[/b][/size]
 
-[list]
-[*]Always back up your save files before installing mods
-[*]This mod is provided as-is with no warranty
-[*]We are not responsible for any lost or damaged saves
-[*]Use at your own risk
-[/list]
+[url=https://github.com/rk-gamemods/7D2D-ProxiCraft]Source Code & Full Documentation (GitHub)[/url]
+
+[url=https://github.com/rk-gamemods/7D2D-ProxiCraft/issues]Report Issues[/url]
 
 [line]
 
-[size=4][b]Source Code[/b][/size]
+[size=4][b]Inspiration[/b][/size]
 
-This mod is open source under the MIT license. You are free to modify and redistribute it.
-
-[url=https://github.com/rk-gamemods/7D2D-ProxiCraft]View on GitHub[/url]
+Built on concepts from [url=https://www.nexusmods.com/7daystodie/mods/2196]CraftFromContainers by aedenthorn[/url].
 
 [line]
 
-[size=4][b]Feedback & Bug Reports[/b][/size]
-
-Found a bug? Have a suggestion? Discovered a mod conflict?
-
-[url=https://github.com/rk-gamemods/7D2D-ProxiCraft/issues]Report an issue on GitHub[/url]
-
-Or leave a comment on this mod page.
+[size=3][i]MIT License - Back up saves before installing mods.[/i][/size]
