@@ -13,6 +13,8 @@
     <NoWarn>$(NoWarn);CS8600;CS8602;CS8604;CS8618</NoWarn>
     <!-- No debug symbols in release - users don't need .pdb files -->
     <DebugType>none</DebugType>
+    <!-- Version for zip file naming -->
+    <ModVersion>1.2.1</ModVersion>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -67,14 +69,24 @@
     </Reference>
   </ItemGroup>
 
-  <!-- Create release zip after build (includes ProxiCraft folder in zip) -->
+  <!-- Create release zips after build (both versioned and unversioned) -->
   <Target Name="CreateReleaseZip" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
     <Delete Files="$(ProjectDir)Release\ProxiCraft.zip" Condition="Exists('$(ProjectDir)Release\ProxiCraft.zip')" />
-    <!-- ZipDirectory zips contents, so we zip the Release folder to include ProxiCraft/ in the archive -->
+    <Delete Files="$(ProjectDir)Release\ProxiCraft-$(ModVersion).zip" Condition="Exists('$(ProjectDir)Release\ProxiCraft-$(ModVersion).zip')" />
+    
+    <!-- Create unversioned zip -->
     <ZipDirectory SourceDirectory="$(ProjectDir)Release"
                   DestinationFile="$(ProjectDir)ProxiCraft.zip"
                   Overwrite="true" />
     <Move SourceFiles="$(ProjectDir)ProxiCraft.zip" DestinationFiles="$(ProjectDir)Release\ProxiCraft.zip" />
+    
+    <!-- Create versioned zip -->
+    <ZipDirectory SourceDirectory="$(ProjectDir)Release"
+                  DestinationFile="$(ProjectDir)ProxiCraft-$(ModVersion).zip"
+                  Overwrite="true" />
+    <Move SourceFiles="$(ProjectDir)ProxiCraft-$(ModVersion).zip" DestinationFiles="$(ProjectDir)Release\ProxiCraft-$(ModVersion).zip" />
+    
     <Message Importance="High" Text="Created Release\ProxiCraft.zip (contains ProxiCraft/ folder)" />
+    <Message Importance="High" Text="Created Release\ProxiCraft-$(ModVersion).zip (versioned release)" />
   </Target>
 </Project>
