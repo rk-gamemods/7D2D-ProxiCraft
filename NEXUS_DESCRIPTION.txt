@@ -10,6 +10,12 @@ Character count: 213
 DETAILED DESCRIPTION (BBCode)
 ================================================================================
 
+[center][size=5][color=#00ff00][b]✨ NEW: v1.2.3 Released! ✨[/b][/color][/size]
+[size=3]Enhanced Safety Mode now enabled by default for better multiplayer stability.[/size]
+[size=2][i]Existing users with custom config.json are unaffected - only fresh installations use new defaults.[/i][/size][/center]
+
+[line]
+
 [size=4][b]What Does This Mod Do?[/b][/size]
 
 ProxiCraft lets you use items stored in nearby containers without moving them to your backpack first.
