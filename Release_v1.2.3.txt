@@ -1,0 +1,56 @@
+## ProxiCraft v1.2.3
+
+### Summary
+Configuration change: Enhanced safety mode now enabled by default for better multiplayer stability.
+
+### Changes
+- **Enhanced Safety Defaults Changed**: All `enhancedSafety*` settings now default to `true` (recommended for multiplayer)
+- **Configuration Documentation Expanded**: NEXUS_DESCRIPTION.txt Configuration section now documents all 30+ settings comprehensively organized by category
+- **No Functional Changes**: This is a default configuration change only - no code changes
+
+**Note for Existing Users**: If you have a custom `config.json`, your settings are unchanged. Only new installations will use the new defaults.
+
+### What is Enhanced Safety Mode?
+
+Enhanced Safety Mode routes all storage operations through a centralized `VirtualInventoryProvider` class, providing:
+- More consistent multiplayer behavior
+- Simplified code paths (easier to maintain and debug)
+- No performance cost
+- Functionally equivalent to standard mode for single-player
+
+Previously marked as "experimental" and disabled by default, testing has shown this mode to be robust and safe. It's now the recommended default for all users, especially those playing multiplayer.
+
+### Installation
+1. Download ProxiCraft-1.2.3.zip
+2. Extract and copy ProxiCraft folder to `7 Days To Die/Mods/`
+3. Launch game with EAC disabled
+
+**Multiplayer**: Install on server AND all clients (same version)
+
+### Configuration
+
+Edit `config.json` in your mod folder: `7 Days To Die/Mods/ProxiCraft/config.json`
+
+After making changes, reload in-game with: `pc reload` (F1 console)
+
+The enhanced safety settings are now:
+```json
+{
+  "enhancedSafetyCrafting": true,
+  "enhancedSafetyReload": true,
+  "enhancedSafetyRepairAndUpgrade": true,
+  "enhancedSafetyVehicleRepair": true,
+  "enhancedSafetyRefuel": true,
+  "enhancedSafetyDiagnosticLogging": false
+}
+```
+
+You can still disable them if you prefer the standard mode or experience any issues.
+
+### Full Documentation
+- [GitHub README](https://github.com/rk-gamemods/7D2D-ProxiCraft)
+- [Configuration Guide](https://github.com/rk-gamemods/7D2D-ProxiCraft#configuration)
+- [Technical Reference](https://github.com/rk-gamemods/7D2D-ProxiCraft/blob/main/TECHNICAL_REFERENCE.md)
+
+### Reporting Issues
+Found a bug? [Open an issue on GitHub](https://github.com/rk-gamemods/7D2D-ProxiCraft/issues)

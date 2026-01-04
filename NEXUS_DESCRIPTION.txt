@@ -138,39 +138,187 @@ Your reports help make multiplayer stable for everyone!
 
 [size=4][b]Configuration[/b][/size]
 
-Edit [b]config.json[/b] in the mod folder:
+Edit [b]config.json[/b] in your mod folder: [b]7 Days To Die/Mods/ProxiCraft/config.json[/b]
+
+After making changes, reload in-game with: [b]pc reload[/b] (F1 console)
+
+[line]
+
+[size=3][b]🎯 Most Important Settings[/b][/size]
+
+[b]Range - How far to search (in blocks)[/b]
+[code]"range": 15[/code]
+[list]
+[*][b]5[/b] = Same room (tight, fast)
+[*][b]15[/b] = Same floor/area (default, balanced) ✓
+[*][b]30[/b] = Entire building (large base)
+[*][b]-1[/b] = Unlimited (all loaded chunks - performance impact!)
+[/list]
+
+[b]Master Switch[/b]
+[code]"modEnabled": true[/code]
+Turn the entire mod on/off. Use [b]pc toggle[/b] command to change temporarily.
+
+[line]
+
+[size=3][b]📦 Storage Sources - What Containers to Use[/b][/size]
+
+Toggle which storage types ProxiCraft searches:
 
 [code]
-{
-  "modEnabled": true,
-  "range": 15,
-  
-  "pullFromVehicles": true,
-  "pullFromDrones": true,
-  "pullFromDewCollectors": true,
-  "pullFromWorkstationOutputs": true,
-  
-  "storagePriority": {
-    "Drone": "1",
-    "DewCollector": "2",
-    "Workstation": "3",
-    "Container": "4",
-    "Vehicle": "5"
-  },
-  
-  "enableForCrafting": true,
-  "enableForReload": true,
-  "enableForRefuel": true,
-  "enableForTrader": true,
-  "respectLockedSlots": true
+"pullFromVehicles": true,          # 4x4, motorcycle, gyrocopter storage
+"pullFromDrones": true,            # Your drone's cargo compartment
+"pullFromDewCollectors": true,     # Dew collector contents
+"pullFromWorkstationOutputs": true # Finished items from forge, campfire, etc.
+"allowLockedContainers": true      # Containers you've unlocked with keys/passwords
+[/code]
+
+Set any to [b]false[/b] to exclude that source.
+
+[b]Note:[/b] Standard containers (chests, boxes) are always included.
+
+[line]
+
+[size=3][b]📋 Storage Priority - Search Order[/b][/size]
+
+Controls which containers are checked first. Lower number = higher priority.
+
+[code]
+"storagePriority": {
+    "Drone": "1",           # Check drones first
+    "DewCollector": "2",    # Then dew collectors
+    "Workstation": "3",     # Then workstations
+    "Container": "4",       # Then regular containers
+    "Vehicle": "5"          # Then vehicles last
 }
 [/code]
 
-[b]Range:[/b] 5 (same room), 15 (same floor - default), 30 (building), -1 (unlimited)
+[b]How it works:[/b] Items are pulled from first available source. Change numbers to reorder (e.g., set Vehicle to "1" to check vehicles first).
 
-[b]Storage Priority:[/b] Lower number = checked first. Items pulled from first available source.
+[line]
 
-See [url=https://github.com/rk-gamemods/7D2D-ProxiCraft]GitHub[/url] for full configuration options.
+[size=3][b]✨ Features - What Actions Use Nearby Storage[/b][/size]
+
+[b]Crafting & Building[/b]
+[code]
+"enableForCrafting": true,         # Craft recipes with container materials
+"enableForRepairAndUpgrade": true, # Repair/upgrade blocks with container materials
+"enableForPainting": true,         # Paint blocks using paint from containers
+[/code]
+
+[b]Combat & Tools[/b]
+[code]
+"enableForReload": true,           # Reload weapons from containers
+"enableForItemRepair": true,       # Repair tools/weapons with repair kits from containers
+"enableForLockpicking": true,      # Use lockpicks from containers
+[/code]
+
+[b]Vehicles & Power[/b]
+[code]
+"enableForRefuel": true,           # Refuel vehicles from containers
+"enableForGeneratorRefuel": true,  # Refuel generators from containers
+[/code]
+
+[b]Economy & Quests[/b]
+[code]
+"enableForTrader": true,           # Pay traders with dukes from containers
+"enableForQuests": true,           # Container items count toward quest objectives
+[/code]
+
+Set any to [b]false[/b] to disable that feature.
+
+[line]
+
+[size=3][b]🖥️ Display & UI Settings[/b][/size]
+
+[code]
+"enableHudAmmoCounter": true,         # Show total ammo (inventory + containers) in HUD
+"enableRecipeTrackerUpdates": true,   # Update recipe tracker in real-time
+"respectLockedSlots": true            # Don't use items in locked container slots
+[/code]
+
+[b]respectLockedSlots:[/b] When [b]true[/b], items you've manually locked in container slots won't be counted or used.
+
+[line]
+
+[size=3][b]🔧 Advanced Settings[/b][/size]
+
+[b]Debug/Diagnostics[/b]
+[code]
+"isDebug": false,              # Verbose logging (performance cost - only for troubleshooting)
+"verboseHealthCheck": false    # Always show full startup diagnostic
+[/code]
+
+[b]Multiplayer Safety (CRITICAL)[/b]
+[code]
+"multiplayerImmediateLock": true,          # Lock mod when clients connect (RECOMMENDED)
+"multiplayerHandshakeTimeoutSeconds": 10   # Timeout for verifying client has ProxiCraft
+[/code]
+
+[color=#ff0000][b]⚠️ WARNING:[/b][/color] Setting [b]multiplayerImmediateLock[/b] to [b]false[/b] removes crash protection! Only use on servers where you enforce ProxiCraft installation externally (whitelist, manual verification).
+
+[b]Enhanced Safety Mode (Recommended for Multiplayer)[/b]
+[code]
+"enhancedSafetyCrafting": true,
+"enhancedSafetyReload": true,
+"enhancedSafetyRepairAndUpgrade": true,
+"enhancedSafetyVehicleRepair": true,
+"enhancedSafetyRefuel": true,
+"enhancedSafetyDiagnosticLogging": false
+[/code]
+
+These route operations through a centralized safety layer (VirtualInventoryProvider) for more consistent multiplayer behavior. [b]Enabled by default[/b] for better stability. No performance cost. Safe to disable if you only play single-player or experience issues.
+
+[line]
+
+[size=3][b]📝 Quick Configuration Examples[/b][/size]
+
+[b]Example 1: Search entire building[/b]
+[code]"range": 30[/code]
+
+[b]Example 2: Only use crafting and reload features[/b]
+[code]
+"enableForCrafting": true,
+"enableForReload": true,
+"enableForRefuel": false,
+"enableForTrader": false,
+"enableForRepairAndUpgrade": false,
+"enableForQuests": false,
+"enableForPainting": false,
+"enableForLockpicking": false,
+"enableForGeneratorRefuel": false,
+"enableForItemRepair": false
+[/code]
+
+[b]Example 3: Disable vehicle pulling but keep everything else[/b]
+[code]"pullFromVehicles": false[/code]
+
+[b]Example 4: Check containers before drones[/b]
+[code]
+"storagePriority": {
+    "Container": "1",
+    "Drone": "2",
+    "DewCollector": "3",
+    "Workstation": "4",
+    "Vehicle": "5"
+}
+[/code]
+
+[line]
+
+[size=3][b]💡 In-Game Configuration Commands[/b][/size]
+
+Press F1 and type:
+[list]
+[*][b]pc config list[/b] - Show all current settings
+[*][b]pc config get range[/b] - Get specific setting value
+[*][b]pc set range 30[/b] - Change setting temporarily (not saved)
+[*][b]pc config save[/b] - Save current runtime settings to config.json
+[*][b]pc reload[/b] - Reload config.json from disk
+[*][b]pc toggle[/b] - Quick enable/disable entire mod
+[/list]
+
+Full documentation: [url=https://github.com/rk-gamemods/7D2D-ProxiCraft]GitHub[/url]
 
 [line]
 
@@ -204,6 +352,13 @@ Use only ONE mod of this type.
 [line]
 
 [size=4][b]Changelog[/b][/size]
+
+[b]v1.2.3[/b]
+[list]
+[*]Changed enhanced safety mode defaults to enabled (recommended for multiplayer stability)
+[*]Configuration documentation expanded with all 30+ settings comprehensively documented
+[*][i]Note: Existing users with custom config.json are unaffected - only fresh installations use new defaults[/i]
+[/list]
 
 [b]v1.2.2[/b]
 [list]
