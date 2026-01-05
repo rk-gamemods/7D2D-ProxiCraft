@@ -1,13 +1,17 @@
-## ProxiCraft v1.2.4
+[size=4][b]ProxiCraft v1.2.4[/b][/size]
 
-### Summary
+[b]Summary[/b]
 Bug fixes for enhanced safety mode session switching and block repair from remote storage.
 
-### Changes
-- **Fixed**: Enhanced safety mode breaking features when switching between single-player and multiplayer sessions
-- **Fixed**: Multiplayer state now properly resets when starting a new game
-- **Fixed**: Block repair (damaged blocks) now correctly uses repair materials from nearby containers
+[b]Changes[/b]
+[list]
+[*]Fixed enhanced safety mode breaking features when switching between single-player and multiplayer sessions
+[*]Fixed multiplayer state now properly resets when starting a new game
+[*]Fixed block repair (damaged blocks) now correctly uses repair materials from nearby containers
+[/list]
 
-### Technical Details
-- Session switching: Multiplayer tracking state was never reset when starting a new game, causing stale flags to disable features
-- Block repair: Game uses different code paths for repair vs upgrade; now both paths pull from nearby containers
+[b]Technical Details[/b]
+[list]
+[*]Session switching: Multiplayer tracking state was never reset when starting a new game, causing stale flags to disable features
+[*]Block repair: Game uses different code paths for repair vs upgrade; now both paths pull from nearby containers
+[/list]
