@@ -357,6 +357,7 @@ Use only ONE mod of this type.
 [list]
 [*]Fixed enhanced safety mode breaking features when switching between game sessions
 [*]Multiplayer state now properly resets when starting a new game
+[*]Fixed block repair not using materials from remote storage [i](reported by falkon311)[/i]
 [/list]
 
 [b]v1.2.3[/b]
