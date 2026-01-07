@@ -297,15 +297,73 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 
 You can manually tell ProxiCraft where it's installed by setting an environment variable called `PROXICRAFT_PATH` to the full folder path.
 
-| Platform | Where to Set It |
-|----------|-----------------|
-| **Windows** | Control Panel → System → Advanced System Settings → Environment Variables → New |
-| **Linux** | Add `export PROXICRAFT_PATH="/path/to/Mods/ProxiCraft"` to your startup script or `/etc/environment` |
-| **CubeCoders AMP** | Configuration → Server Settings → Environment Variables |
-| **Pterodactyl/Pelican** | Server → Startup → Environment Variables |
-| **Docker** | Add `-e PROXICRAFT_PATH=/path/to/Mods/ProxiCraft` to your docker run command |
+<details>
+<summary><b>Windows 10/11</b> (click to expand)</summary>
 
-Example value: `C:\GameServers\7DaysToDie\Mods\ProxiCraft` or `/home/sdtd/Mods/ProxiCraft`
+1. Press `Win + R` to open Run dialog
+2. Type `sysdm.cpl` and press Enter
+3. Click the **Advanced** tab
+4. Click **Environment Variables** button at the bottom
+5. Under "System variables", click **New**
+6. Variable name: `PROXICRAFT_PATH`
+7. Variable value: `C:\Path\To\Your\Mods\ProxiCraft`
+8. Click OK on all dialogs
+9. Restart your server
+
+</details>
+
+<details>
+<summary><b>Linux</b> (click to expand)</summary>
+
+Add to your server startup script before launching the game:
+```bash
+export PROXICRAFT_PATH="/home/sdtd/serverfiles/Mods/ProxiCraft"
+```
+
+Or add to `/etc/environment` for system-wide (requires reboot):
+```
+PROXICRAFT_PATH="/home/sdtd/serverfiles/Mods/ProxiCraft"
+```
+
+</details>
+
+<details>
+<summary><b>CubeCoders AMP</b> (click to expand)</summary>
+
+1. Go to your 7 Days to Die instance
+2. Configuration → Server Settings (or Instance Settings)
+3. Look for "Environment Variables" section
+4. Add new variable:
+   - Name: `PROXICRAFT_PATH`
+   - Value: The full path shown in AMP's File Manager for your Mods/ProxiCraft folder
+
+</details>
+
+<details>
+<summary><b>Pterodactyl / Pelican</b> (click to expand)</summary>
+
+1. Go to your server panel
+2. Click **Startup** tab
+3. Scroll to **Environment Variables** section
+4. Add: `PROXICRAFT_PATH` = `/home/container/Mods/ProxiCraft` (adjust path as needed)
+
+</details>
+
+<details>
+<summary><b>Docker</b> (click to expand)</summary>
+
+Add to your docker run command:
+```bash
+-e PROXICRAFT_PATH=/path/to/Mods/ProxiCraft
+```
+
+Or in docker-compose.yml:
+```yaml
+environment:
+  - PROXICRAFT_PATH=/path/to/Mods/ProxiCraft
+```
+
+</details>
 
 ### v1.2.4 - Enhanced Safety Fix
 
