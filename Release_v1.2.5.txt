@@ -1,18 +1,22 @@
-## ProxiCraft v1.2.5
+[size=4][b]ProxiCraft v1.2.5[/b][/size]
 
-### Summary
+[b]Summary[/b]
 Fixed mod failing to load on dedicated server hosting panels like CubeCoders AMP.
 
-### Changes
-- Added robust path detection that matches how the game itself finds mods
-- Mod now checks both AppData location and game install Mods folder
+[b]Changes[/b]
+[list]
+[*]Added robust path detection that matches how the game itself finds mods
+[*]Mod now checks both AppData location and game install Mods folder
+[/list]
 
-### Installation
-1. Download ProxiCraft-1.2.5.zip
-2. Extract and copy ProxiCraft folder to 7 Days To Die/Mods/
-3. Launch game with EAC disabled
+[b]Installation[/b]
+[list=1]
+[*]Download ProxiCraft-1.2.5.zip
+[*]Extract and copy ProxiCraft folder to 7 Days To Die/Mods/
+[*]Launch game with EAC disabled
+[/list]
 
-**Multiplayer**: Install on server AND all clients (same version)
+[b]Multiplayer:[/b] Install on server AND all clients (same version)
 
-### Reporting Issues
-Found a bug? https://github.com/rk-gamemods/7D2D-ProxiCraft/issues
+[b]Reporting Issues[/b]
+Found a bug? [url=https://github.com/rk-gamemods/7D2D-ProxiCraft/issues]Open an issue on GitHub[/url]
