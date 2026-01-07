@@ -307,7 +307,10 @@ public class ProxiCraft : IModApi
     {
         try
         {
-            string configPath = Path.Combine(GetModFolder(), "config.json");
+            // Log path detection method for diagnostics
+            FileLogInternal($"Mod path: {ModPath.ModFolder} (via {ModPath.DetectionMethod})");
+            
+            string configPath = ModPath.ConfigPath;
             
             if (File.Exists(configPath))
             {
@@ -333,10 +336,7 @@ public class ProxiCraft : IModApi
         }
     }
     
-    private string GetModFolder()
-    {
-        return Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".";
-    }
+    // GetModFolder() removed - use ModPath.ModFolder instead
 
     /// <summary>
     /// Initializes the FileSystemWatcher to monitor config.json for changes.
@@ -346,9 +346,7 @@ public class ProxiCraft : IModApi
     {
         try
         {
-            string configPath = Path.Combine(
-                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".",
-                "config.json");
+            string configPath = ModPath.ConfigPath;
             string configDir = Path.GetDirectoryName(configPath);
 
             if (string.IsNullOrEmpty(configDir))
@@ -407,9 +405,7 @@ public class ProxiCraft : IModApi
     {
         try
         {
-            string configPath = Path.Combine(
-                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".",
-                "config.json");
+            string configPath = ModPath.ConfigPath;
 
             if (!File.Exists(configPath))
             {
@@ -461,9 +457,7 @@ public class ProxiCraft : IModApi
     /// </summary>
     public static string GetConfigPath()
     {
-        return Path.Combine(
-            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".",
-            "config.json");
+        return ModPath.ConfigPath;
     }
 
     #endregion
@@ -476,9 +470,7 @@ public class ProxiCraft : IModApi
     {
         if (_logFilePath == null)
         {
-            _logFilePath = Path.Combine(
-                Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? ".",
-                "pc_debug.log");
+            _logFilePath = ModPath.DebugLogPath;
             // Clear old log on startup
             try { File.WriteAllText(_logFilePath, $"=== PC Debug Log Started {DateTime.Now} ===\n"); } catch { }
         }

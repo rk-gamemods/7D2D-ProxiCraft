@@ -87,8 +87,7 @@ public static class NetworkDiagnostics
 
         try
         {
-            string modPath = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            _networkLogPath = Path.Combine(modPath, "network_log.txt");
+            _networkLogPath = ModPath.NetworkLogPath;
 
             // Clear the log file for this session
             File.WriteAllText(_networkLogPath,

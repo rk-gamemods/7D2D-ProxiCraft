@@ -510,8 +510,7 @@ Examples:
         // Save to file so users can copy/paste for bug reports
         try
         {
-            string modPath = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            string filePath = System.IO.Path.Combine(modPath, "fullcheck_report.txt");
+            string filePath = ModPath.GetFilePath("fullcheck_report.txt");
             
             string fileReport = $"=== ProxiCraft Full Diagnostic Report ===\n";
             fileReport += $"Generated: {System.DateTime.Now:yyyy-MM-dd HH:mm:ss}\n\n";
@@ -582,8 +581,7 @@ Examples:
             report += PerformanceProfiler.GetReport();
             
             // Write to mod folder
-            string modPath = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            string filePath = System.IO.Path.Combine(modPath, "perf_report.txt");
+            string filePath = ModPath.GetFilePath("perf_report.txt");
             
             System.IO.File.WriteAllText(filePath, report);
             
@@ -619,9 +617,8 @@ Examples:
             if (saveToFile)
             {
                 SavePerfReportToFile();
-                string modPath = System.IO.Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
                 Output("");
-                Output($"Report saved to: {System.IO.Path.Combine(modPath, "perf_report.txt")}");
+                Output($"Report saved to: {ModPath.GetFilePath("perf_report.txt")}");
             }
         }
         else
