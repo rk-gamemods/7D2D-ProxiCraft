@@ -23,12 +23,6 @@ Added defensive measures for rare edge cases that could cause crashes during ite
 [*]Crash prevention logging with [CrashPrevention] prefix for diagnostics
 [/list]
 
-[b]New Config Option:[/b]
-[code]"containerLockExpirySeconds": 30[/code]
-Time in seconds before container locks auto-expire (default 30 seconds).
-Locks are a UX courtesy to prevent "where did my items go?" when someone has a container open.
-They are NOT required for crash prevention.
-
 [b]Installation:[/b]
 [list]
 [*]Download ProxiCraft-1.2.7.zip

@@ -371,7 +371,7 @@ ProxiCraft is designed to survive game updates:
 │  │LOCKED │────────────│EXPIRED│ → Auto-removed on next access  │
 │  └───────┘            └───────┘                                │
 │                                                                │
-│  Config: containerLockExpirySeconds = 30 (default)             │
+│  Locks auto-expire after 30 seconds (internal default).        │
 │  30 seconds is plenty for any normal container interaction.    │
 │  Ghost locks self-heal quickly without blocking functionality. │
 └────────────────────────────────────────────────────────────────┘
