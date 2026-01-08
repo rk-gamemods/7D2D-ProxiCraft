@@ -364,6 +364,7 @@ Use only ONE mod of this type.
 [*]Added lock expiration (30 sec default) - ghost locks self-heal quickly
 [*]Added retry mechanism for handshake and lock broadcasts on connection hiccups
 [*]Improved network diagnostics for troubleshooting
+[*]Added robustness improvements for rare edge cases (TileEntity destruction, chunk unload, bounds checks)
 [/list]
 
 [b]v1.2.6[/b]

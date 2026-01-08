@@ -440,7 +440,7 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 
 ## Changelog
 
-### v1.2.7 - Network Stability Improvements
+### v1.2.7 - Network Stability & Robustness Improvements
 
 **Fixed:**
 - Fixed multiplayer handshake packet loss causing mod to lock up for entire server session
@@ -451,6 +451,13 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 - Added lock retry cancellation to prevent stale locks after rapid open/close
 - Added network latency diagnostics for troubleshooting slow connections
 - Improved error handling in packet deserialization
+
+**Robustness Improvements:**
+- Added defensive measures for rare edge cases during item removal operations:
+  - Pre-check TileEntity.IsRemoving before container access (prevents crash if block destroyed mid-operation)
+  - Chunk read locks with proper finally blocks during modifications (prevents crash if chunk unloads)
+  - Defensive bounds and null checks in all item iteration loops
+  - Try-catch wrappers with automatic cleanup and `[CrashPrevention]` logging to pc_debug.log and Player.log
 
 ### v1.2.6 - Config File Bug Fix
 
