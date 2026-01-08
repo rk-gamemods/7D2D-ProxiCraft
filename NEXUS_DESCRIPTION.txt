@@ -356,10 +356,16 @@ Use only ONE mod of this type.
 
 [size=4][b]Changelog[/b][/size]
 
+[b]v1.2.6[/b]
+[list]
+[*]Fixed config settings being overwritten on game load
+[*]Fixed race condition in config file watcher
+[*]Fixed potential integer overflow in item count cache
+[/list]
+
 [b]v1.2.5[/b]
 [list]
-[*]Fixed mod failing to load on some dedicated server hosting panels (CubeCoders AMP, etc.)
-[*]Added robust path detection with multiple fallback methods
+[*]Added robust path detection with multiple fallback methods (reported by: restiphani21)
 [/list]
 
 [b]v1.2.4[/b]

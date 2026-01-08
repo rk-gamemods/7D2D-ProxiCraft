@@ -4,7 +4,7 @@ A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs usin
 
 **[Nexus Mods](https://www.nexusmods.com/7daystodie/mods/9269)** • **[GitHub](https://github.com/rk-gamemods/7D2D-ProxiCraft)**
 
-## ⬇️ [Download ProxiCraft-1.2.5.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.5.zip)
+## ⬇️ [Download ProxiCraft-1.2.6.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.6.zip)
 
 ---
 
@@ -287,6 +287,13 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 ---
 
 ## Changelog
+
+### v1.2.6 - Config File Bug Fix
+
+**Fixed:**
+- Fixed config settings being overwritten on game load
+- Fixed race condition in config file watcher
+- Fixed potential integer overflow in item count cache
 
 ### v1.2.5 - Hosting Panel Compatibility
 

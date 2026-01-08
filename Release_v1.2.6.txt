@@ -1,0 +1,20 @@
+[size=4][b]ProxiCraft v1.2.6[/b][/size]
+
+[b]Summary[/b]
+Bug fix release addressing config file corruption and minor stability issues.
+
+[b]Fixed[/b]
+[list]
+[*]Fixed config settings being overwritten on game load - config.json is no longer modified automatically
+[*]Fixed race condition in config file watcher that could cause multiple reloads
+[*]Fixed potential integer overflow when counting large quantities of items
+[/list]
+
+[b]Installation[/b]
+[list=1]
+[*]Download ProxiCraft-1.2.6.zip
+[*]Extract and copy ProxiCraft folder to 7 Days To Die/Mods/
+[*]Launch game with EAC disabled
+[/list]
+
+[b]Multiplayer:[/b] Install on server AND all clients (same version)

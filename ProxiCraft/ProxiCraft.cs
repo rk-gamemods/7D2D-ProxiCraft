@@ -56,7 +56,7 @@ public class ProxiCraft : IModApi
 {
     // Mod metadata
     public const string MOD_NAME = "ProxiCraft";
-    public const string MOD_VERSION = "1.2.5";
+    public const string MOD_VERSION = "1.2.6";
     
     // Static references
     private static ProxiCraft _instance;
@@ -68,7 +68,7 @@ public class ProxiCraft : IModApi
 
     // Config file watcher for runtime config changes
     private static FileSystemWatcher _configWatcher;
-    private static bool _reloadPending;
+    private static int _reloadPending; // 0 = not pending, 1 = pending (use Interlocked for thread safety)
 
     #region IModApi Implementation
     
@@ -316,7 +316,6 @@ public class ProxiCraft : IModApi
             {
                 string json = File.ReadAllText(configPath);
                 Config = JsonConvert.DeserializeObject<ModConfig>(json) ?? new ModConfig();
-                Config.MigrateDeprecatedSettings(); // Handle old config field names
                 FileLogInternal("Configuration loaded from config.json");
             }
             else
@@ -325,9 +324,14 @@ public class ProxiCraft : IModApi
                 FileLogInternal("Using default configuration");
             }
             
-            // Always save config to update with any new fields
-            string updatedJson = JsonConvert.SerializeObject(Config, Formatting.Indented);
-            File.WriteAllText(configPath, updatedJson);
+            // NOTE: We intentionally do NOT auto-save the config here.
+            // The config file should only be modified when:
+            // 1. User explicitly runs 'pc config save' console command
+            // 2. User manually edits the file
+            // Auto-saving on load was causing bugs:
+            // - Deprecated fields like enableFromVehicles were being written as null
+            // - User's custom comments/formatting in config.json were lost
+            // - Settings appeared to "vanish" due to null values overwriting
         }
         catch (Exception ex)
         {
@@ -370,12 +374,14 @@ public class ProxiCraft : IModApi
 
     /// <summary>
     /// Handles config file change events with debouncing to avoid multiple reloads.
+    /// Uses Interlocked for thread-safe flag operations.
     /// </summary>
     private static void OnConfigFileChanged(object sender, FileSystemEventArgs e)
     {
         // Debounce - file may be written multiple times in rapid succession
-        if (_reloadPending) return;
-        _reloadPending = true;
+        // Use Interlocked.CompareExchange for thread-safe check-and-set
+        if (System.Threading.Interlocked.CompareExchange(ref _reloadPending, 1, 0) != 0)
+            return; // Another reload is already pending
 
         // Delay reload slightly to allow file write to complete
         // Use ThreadManager for Unity thread safety
@@ -392,7 +398,7 @@ public class ProxiCraft : IModApi
             }
             finally
             {
-                _reloadPending = false;
+                System.Threading.Interlocked.Exchange(ref _reloadPending, 0);
             }
         });
     }
@@ -427,7 +433,6 @@ public class ProxiCraft : IModApi
             float oldRange = Config?.range ?? 15f;
 
             // Apply new config
-            newConfig.MigrateDeprecatedSettings();
             Config = newConfig;
 
             // Invalidate caches if range changed

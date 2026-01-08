@@ -993,11 +993,12 @@ public static class ContainerManager
 
     /// <summary>
     /// Adds to the item count cache for a specific item type.
+    /// Uses checked arithmetic to prevent integer overflow.
     /// </summary>
     private static void AddToCountCache(int itemType, int count)
     {
         if (_itemCountCache.TryGetValue(itemType, out int existing))
-            _itemCountCache[itemType] = existing + count;
+            _itemCountCache[itemType] = AdaptivePatching.SafeAddCount(existing, count);
         else
             _itemCountCache[itemType] = count;
     }

@@ -206,24 +206,4 @@ public class ModConfig
     /// When true (default), items in locked slots won't be counted, used, or removed.
     /// </summary>
     public bool respectLockedSlots = true;
-
-    // ===========================================
-    // DEPRECATED - Kept for backward compatibility
-    // ===========================================
-
-    /// <summary>DEPRECATED: Use pullFromVehicles instead. Kept for config migration.</summary>
-    public bool? enableFromVehicles = null;
-
-    /// <summary>
-    /// Called after deserialization to migrate old config values to new names.
-    /// </summary>
-    public void MigrateDeprecatedSettings()
-    {
-        // Migrate enableFromVehicles -> pullFromVehicles
-        if (enableFromVehicles.HasValue)
-        {
-            pullFromVehicles = enableFromVehicles.Value;
-            enableFromVehicles = null; // Clear so it doesn't get saved
-        }
-    }
 }
