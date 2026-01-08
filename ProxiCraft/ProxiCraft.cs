@@ -774,6 +774,7 @@ public class ProxiCraft : IModApi
 
     /// <summary>
     /// Syncs container lock state in multiplayer (when someone opens a container).
+    /// If connection is temporarily unavailable, logs and schedules a retry.
     /// </summary>
     [HarmonyPatch(typeof(GameManager), nameof(GameManager.TELockServer))]
     [HarmonyPriority(Priority.Low)]
@@ -787,20 +788,18 @@ public class ProxiCraft : IModApi
             try
             {
                 var connManager = SingletonMonoBehaviour<ConnectionManager>.Instance;
-                if (connManager == null || !connManager.IsServer || !connManager.IsConnected)
+                if (connManager == null || !connManager.IsServer)
                     return;
 
-                var tileEntity = _lootEntityId != -1 
-                    ? __instance.m_World.GetTileEntity(_lootEntityId) 
-                    : __instance.m_World.GetTileEntity(_blockPos);
-
-                if (tileEntity != null && __instance.lockedTileEntities.ContainsKey((ITileEntity)(object)tileEntity))
+                // Check connection state - if briefly unavailable, log and retry
+                if (!connManager.IsConnected)
                 {
-                    LogDebug($"[Network] Broadcasting container lock at {_blockPos}");
-                    var packet = NetPackageManager.GetPackage<NetPackagePCLock>().Setup(_blockPos, false);
-                    connManager.SendPackage(
-                        (NetPackage)(object)packet, true, -1, -1, -1, null, 192, false);
+                    LogWarning("[Network] Connection unavailable when broadcasting lock - scheduling retry");
+                    ThreadManager.StartCoroutine(RetryBroadcastLock(__instance, _blockPos, _lootEntityId, false));
+                    return;
                 }
+
+                BroadcastLockState(__instance, connManager, _blockPos, _lootEntityId, false);
             }
             catch (Exception ex)
             {
@@ -811,6 +810,7 @@ public class ProxiCraft : IModApi
 
     /// <summary>
     /// Syncs container unlock state in multiplayer (when someone closes a container).
+    /// If connection is temporarily unavailable, logs and schedules a retry.
     /// </summary>
     [HarmonyPatch(typeof(GameManager), nameof(GameManager.TEUnlockServer))]
     [HarmonyPriority(Priority.Low)]
@@ -824,24 +824,152 @@ public class ProxiCraft : IModApi
             try
             {
                 var connManager = SingletonMonoBehaviour<ConnectionManager>.Instance;
-                if (connManager == null || !connManager.IsServer || !connManager.IsConnected)
+                if (connManager == null || !connManager.IsServer)
                     return;
 
-                var tileEntity = _lootEntityId != -1 
-                    ? __instance.m_World.GetTileEntity(_lootEntityId) 
-                    : __instance.m_World.GetTileEntity(_blockPos);
-
-                if (tileEntity != null && !__instance.lockedTileEntities.ContainsKey((ITileEntity)(object)tileEntity))
+                // Check connection state - if briefly unavailable, log and retry
+                if (!connManager.IsConnected)
                 {
-                    LogDebug($"[Network] Broadcasting container unlock at {_blockPos}");
-                    var packet = NetPackageManager.GetPackage<NetPackagePCLock>().Setup(_blockPos, true);
-                    connManager.SendPackage(
-                        (NetPackage)(object)packet, true, -1, -1, -1, null, 192, false);
+                    LogWarning("[Network] Connection unavailable when broadcasting unlock - scheduling retry");
+                    ThreadManager.StartCoroutine(RetryBroadcastLock(__instance, _blockPos, _lootEntityId, true));
+                    return;
+                }
+
+                BroadcastLockState(__instance, connManager, _blockPos, _lootEntityId, true);
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"[Network] Error in TEUnlockServer patch: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Broadcasts lock/unlock state to clients. Shared logic for lock and unlock patches.
+    /// </summary>
+    private static void BroadcastLockState(GameManager gm, ConnectionManager connManager, Vector3i blockPos, int lootEntityId, bool unlock)
+    {
+        try
+        {
+            var tileEntity = lootEntityId != -1 
+                ? gm.m_World.GetTileEntity(lootEntityId) 
+                : gm.m_World.GetTileEntity(blockPos);
+
+            if (tileEntity == null)
+                return;
+
+            // For lock: check if it IS in lockedTileEntities (just got locked)
+            // For unlock: check if it's NOT in lockedTileEntities (just got unlocked)
+            bool shouldBroadcast = unlock 
+                ? !gm.lockedTileEntities.ContainsKey((ITileEntity)(object)tileEntity)
+                : gm.lockedTileEntities.ContainsKey((ITileEntity)(object)tileEntity);
+
+            if (shouldBroadcast)
+            {
+                LogDebug($"[Network] Broadcasting container {(unlock ? "unlock" : "lock")} at {blockPos}");
+                var packet = NetPackageManager.GetPackage<NetPackagePCLock>().Setup(blockPos, unlock);
+                connManager.SendPackage((NetPackage)(object)packet, true, -1, -1, -1, null, 192, false);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogWarning($"[Network] Error broadcasting {(unlock ? "unlock" : "lock")}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Retry broadcasting lock state after a brief delay.
+    /// Handles temporary connection hiccups - if connection doesn't recover, gives up gracefully.
+    /// </summary>
+    private static System.Collections.IEnumerator RetryBroadcastLock(GameManager gm, Vector3i blockPos, int lootEntityId, bool unlock)
+    {
+        // Wait 500ms for connection to potentially recover
+        yield return new UnityEngine.WaitForSeconds(0.5f);
+
+        try
+        {
+            var connManager = SingletonMonoBehaviour<ConnectionManager>.Instance;
+            if (connManager == null || !connManager.IsServer)
+            {
+                LogWarning($"[Network] Retry failed: no longer server (container {(unlock ? "unlock" : "lock")} at {blockPos})");
+                yield break;
+            }
+
+            if (!connManager.IsConnected)
+            {
+                LogWarning($"[Network] Retry failed: still not connected (container {(unlock ? "unlock" : "lock")} at {blockPos})");
+                yield break;
+            }
+
+            Log($"[Network] Retry successful: broadcasting {(unlock ? "unlock" : "lock")} at {blockPos}");
+            BroadcastLockState(gm, connManager, blockPos, lootEntityId, unlock);
+        }
+        catch (Exception ex)
+        {
+            LogWarning($"[Network] Retry broadcast error: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Handles orphan lock cleanup when a player disconnects.
+    /// The game calls ClearTileEntityLockForClient but doesn't broadcast to other clients.
+    /// This patch ensures all clients know the container is now available.
+    /// </summary>
+    [HarmonyPatch(typeof(GameManager), nameof(GameManager.ClearTileEntityLockForClient))]
+    [HarmonyPriority(Priority.Low)]
+    public static class GameManager_ClearTileEntityLockForClient_Patch
+    {
+        // Capture the tile entity BEFORE it's removed from lockedTileEntities
+        public static void Prefix(GameManager __instance, int _entityId, out Vector3i __state)
+        {
+            __state = Vector3i.zero;
+            
+            if (!Config?.modEnabled == true)
+                return;
+
+            try
+            {
+                // Find the tile entity that this player has locked (if any)
+                foreach (var kvp in __instance.lockedTileEntities)
+                {
+                    if (kvp.Value == _entityId)
+                    {
+                        // Found it - capture the position before it gets cleared
+                        __state = kvp.Key.ToWorldPos();
+                        LogDebug($"[Network] Player {_entityId} disconnecting - will broadcast unlock for container at {__state}");
+                        break;
+                    }
                 }
             }
             catch (Exception ex)
             {
-                LogWarning($"Error in TEUnlockServer patch: {ex.Message}");
+                LogWarning($"[Network] Error in ClearTileEntityLockForClient prefix: {ex.Message}");
+            }
+        }
+
+        // After the lock is cleared, broadcast the unlock to all clients
+        public static void Postfix(Vector3i __state)
+        {
+            if (__state == Vector3i.zero)
+                return;  // No container was found to clear
+
+            if (!Config?.modEnabled == true)
+                return;
+
+            try
+            {
+                var connManager = SingletonMonoBehaviour<ConnectionManager>.Instance;
+                if (connManager == null || !connManager.IsServer)
+                    return;
+
+                // Connection might be in flux during disconnect - just try our best
+                Log($"[Network] Broadcasting orphan unlock for container at {__state} (player disconnected)");
+                var packet = NetPackageManager.GetPackage<NetPackagePCLock>().Setup(__state, true);
+                connManager.SendPackage((NetPackage)(object)packet, true, -1, -1, -1, null, 192, false);
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"[Network] Error broadcasting orphan unlock: {ex.Message}");
             }
         }
     }

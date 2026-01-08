@@ -5,8 +5,8 @@ Network Stability Improvements
 [b]Fixed:[/b]
 [list]
 [*]Fixed multiplayer handshake packet loss causing mod to lock up for entire server session
-[*]Added retry mechanism for client handshake (1-second intervals until timeout)
-[*]Added connection state validation before sending network packets
+[*]Fixed orphan container locks when players disconnect (containers no longer stay "locked" forever)
+[*]Added retry mechanism for handshake and lock broadcasts on temporary connection hiccups
 [*]Improved network diagnostics for troubleshooting
 [*]Improved error handling in packet deserialization
 [/list]

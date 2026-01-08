@@ -292,8 +292,9 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 
 **Fixed:**
 - Fixed multiplayer handshake packet loss causing mod to lock up for entire server session
+- Fixed orphan container locks when players disconnect (containers no longer stay "locked" forever)
 - Added retry mechanism for client handshake (1-second intervals until timeout)
-- Added connection state validation before sending network packets
+- Added retry mechanism for lock/unlock broadcasts on temporary connection hiccups
 - Added network latency diagnostics for troubleshooting slow connections
 - Improved error handling in packet deserialization
 
