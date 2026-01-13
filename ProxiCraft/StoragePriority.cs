@@ -75,27 +75,44 @@ public static class StoragePriority
     }
 
     /// <summary>
-    /// Orders a storage dictionary by priority. Returns enumerable in priority order.
+    /// Orders a storage dictionary by priority. Returns a LIST snapshot for safe iteration.
+    /// Accepts IDictionary to support both Dictionary and ConcurrentDictionary.
+    /// 
+    /// THREAD SAFETY (v1.2.8):
+    /// - Returns a defensive copy (List) to prevent concurrent modification issues
+    /// - Safe to iterate even if source dictionary is modified concurrently
     /// </summary>
     public static IEnumerable<KeyValuePair<Vector3i, object>> OrderStorages(
-        Dictionary<Vector3i, object> storageDict,
+        IDictionary<Vector3i, object> storageDict,
         Func<object, StorageType> getStorageType)
     {
         if (!_initialized || storageDict == null || storageDict.Count == 0)
-            return storageDict ?? Enumerable.Empty<KeyValuePair<Vector3i, object>>();
+            return storageDict?.ToList() ?? Enumerable.Empty<KeyValuePair<Vector3i, object>>();
 
         // Create lookup for priority index
         var priorityIndex = new Dictionary<StorageType, int>();
         for (int i = 0; i < _cachedOrder.Count; i++)
             priorityIndex[_cachedOrder[i]] = i;
 
-        // Sort by priority order
-        return storageDict
-            .OrderBy(kvp =>
-            {
-                var type = getStorageType(kvp.Value);
-                return priorityIndex.TryGetValue(type, out int idx) ? idx : int.MaxValue;
-            });
+        // THREAD SAFETY: Take snapshot with ToList() FIRST, then sort
+        // This ensures we don't iterate a live ConcurrentDictionary during sorting
+        try
+        {
+            return storageDict
+                .ToList() // Snapshot for thread safety
+                .OrderBy(kvp =>
+                {
+                    var type = getStorageType(kvp.Value);
+                    return priorityIndex.TryGetValue(type, out int idx) ? idx : int.MaxValue;
+                })
+                .ToList(); // Return as List for safe iteration by caller
+        }
+        catch (Exception ex)
+        {
+            // If snapshot fails (very rare - collection changed during ToList), return empty
+            ProxiCraft.LogWarning($"OrderStorages snapshot failed: {ex.Message}");
+            return Enumerable.Empty<KeyValuePair<Vector3i, object>>();
+        }
     }
 
     /// <summary>
