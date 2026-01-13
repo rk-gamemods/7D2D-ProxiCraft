@@ -12,7 +12,7 @@ Multiplayer Thread Safety & Crash Prevention
 
 [b]New:[/b]
 [list]
-[*]Added crash diagnostics - look for [FR] entries in pc_debug.log when reporting issues
+[*]Added crash diagnostics to pc_debug.log
 [*]Log file now self-manages size
 [/list]
 

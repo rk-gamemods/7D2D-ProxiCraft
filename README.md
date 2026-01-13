@@ -449,7 +449,7 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 - Fixed concurrent modification vulnerability in storage priority ordering
 
 **New:**
-- Added crash diagnostics - look for `[FR]` entries in `pc_debug.log` when reporting issues
+- Added crash diagnostics to `pc_debug.log`
 - Log file now self-manages size
 
 ### v1.2.7 - Network Stability & Robustness Improvements

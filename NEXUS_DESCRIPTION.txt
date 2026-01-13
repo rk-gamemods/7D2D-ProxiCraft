@@ -362,7 +362,7 @@ Use only ONE mod of this type.
 [*]Fixed potential crash when iterating container locks during player disconnect
 [*]Fixed thread safety issues in item count cache that could cause rare crashes
 [*]Fixed concurrent modification vulnerability in storage priority ordering
-[*]Added crash diagnostics - look for [FR] entries in pc_debug.log when reporting issues
+[*]Added crash diagnostics to pc_debug.log
 [*]Log file now self-manages size
 [/list]
 
