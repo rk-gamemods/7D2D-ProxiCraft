@@ -362,7 +362,8 @@ Use only ONE mod of this type.
 [*]Fixed potential crash when iterating container locks during player disconnect
 [*]Fixed thread safety issues in item count cache that could cause rare crashes
 [*]Fixed concurrent modification vulnerability in storage priority ordering
-[*]Added FlightRecorder crash diagnostics - captures last 50 events before crash
+[*]Added crash diagnostics - look for [FR] entries in pc_debug.log when reporting issues
+[*]Log file now self-manages size
 [/list]
 
 [b]v1.2.7[/b]

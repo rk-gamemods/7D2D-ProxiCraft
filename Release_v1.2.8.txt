@@ -8,13 +8,12 @@ Multiplayer Thread Safety & Crash Prevention
 [*]Fixed potential crash when iterating container locks during player disconnect
 [*]Fixed thread safety issues in item count cache that could cause rare crashes
 [*]Fixed concurrent modification vulnerability in storage priority ordering
-[*]Fixed GetStorageItems iteration without snapshot causing rare InvalidOperationException
 [/list]
 
 [b]New:[/b]
 [list]
-[*]Added crash diagnostics - look for [FR] entries in pc_debug.log if reporting issues
-[*]Log file now self-manages size (won't grow forever)
+[*]Added crash diagnostics - look for [FR] entries in pc_debug.log when reporting issues
+[*]Log file now self-manages size
 [/list]
 
 [b]Technical Changes:[/b]

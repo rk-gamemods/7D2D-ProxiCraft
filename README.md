@@ -447,7 +447,6 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 - Fixed potential crash when iterating container locks during player disconnect
 - Fixed thread safety issues in item count cache that could cause rare crashes
 - Fixed concurrent modification vulnerability in storage priority ordering
-- Fixed GetStorageItems iteration without snapshot causing rare InvalidOperationException
 
 **New:**
 - Added crash diagnostics - look for `[FR]` entries in `pc_debug.log` when reporting issues
