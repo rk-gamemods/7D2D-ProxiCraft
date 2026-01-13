@@ -1,7 +1,0 @@
-[size=5][b]ProxiCraft v1.2.3 Released[/b][/size]
-
-[b]Changes:[/b]
-[list]
-[*]Changed enhanced safety mode defaults to enabled
-[*]Configuration documentation expanded
-[/list]
