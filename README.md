@@ -440,13 +440,12 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 
 ## Changelog
 
-### v1.2.8 - Multiplayer Thread Safety & Crash Prevention
+### v1.2.8 - Multiplayer Crash Fix
 
 **Fixed:**
-- Fixed race condition in client verification counter causing potential unlock failures
-- Fixed potential crash when iterating container locks during player disconnect
-- Fixed thread safety issues in item count cache that could cause rare crashes
-- Fixed concurrent modification vulnerability in storage priority ordering
+- Fixed multiplayer crash when client opens containers (reported by users in Russia and US)
+- Fixed "Player Unknown" showing instead of actual player name during handshake
+- Fixed rare crashes during player disconnect
 
 **New:**
 - Added crash diagnostics to `pc_debug.log`

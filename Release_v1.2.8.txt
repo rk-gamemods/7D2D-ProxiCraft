@@ -1,27 +1,18 @@
 [size=4][b]ProxiCraft v1.2.8[/b][/size]
 
-Multiplayer Thread Safety & Crash Prevention
+Multiplayer Crash Fix
 
 [b]Fixed:[/b]
 [list]
-[*]Fixed race condition in client verification counter causing potential unlock failures
-[*]Fixed potential crash when iterating container locks during player disconnect
-[*]Fixed thread safety issues in item count cache that could cause rare crashes
-[*]Fixed concurrent modification vulnerability in storage priority ordering
+[*]Fixed multiplayer crash when client opens containers (reported by users in Russia and US)
+[*]Fixed "Player Unknown" showing instead of actual player name during handshake
+[*]Fixed rare crashes during player disconnect
 [/list]
 
 [b]New:[/b]
 [list]
 [*]Added crash diagnostics to pc_debug.log
 [*]Log file now self-manages size
-[/list]
-
-[b]Technical Changes:[/b]
-[list]
-[*]Client count now uses atomic Interlocked operations for thread safety
-[*]Container lock iteration now uses defensive ToArray() snapshots
-[*]Storage ordering now returns defensive copy instead of modifying original
-[*]Item count cache now uses dedicated lock object with proper synchronization
 [/list]
 
 [b]Installation:[/b]
