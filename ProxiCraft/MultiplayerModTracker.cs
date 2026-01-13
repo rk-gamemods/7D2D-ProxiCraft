@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace ProxiCraft;
 
@@ -61,6 +62,11 @@ public static class MultiplayerModTracker
     private static bool _immediatelyLockMod;           // Lock active while ANY client unverified
     private static int _unverifiedClientCount;         // Number of clients pending verification
     private static bool _immediateLockEnabled;         // Cached config setting for this session
+
+    // CRASH PREVENTION: Track when mod was re-enabled to create "early connection window"
+    // During this window, skip risky network operations to prevent crashes from unstable connections
+    private static DateTime? _modReenabledTime;
+    private const float EARLY_CONNECTION_WINDOW_SECONDS = 3f;
     
     // Track pending and verified clients
     private static readonly ConcurrentDictionary<int, PendingClientInfo> _pendingClients = 
@@ -210,24 +216,30 @@ public static class MultiplayerModTracker
         try
         {
             if (clientInfo == null) return;
-            
+
+            var clientName = clientInfo.playerName ?? "unknown";
+            FlightRecorder.Record("MP", $"CLIENT CONNECTING: {clientName}");
+
             // IMMEDIATELY lock the mod - "Guilty Until Proven Innocent"
             _immediatelyLockMod = true;
-            _unverifiedClientCount++;
-            
+            Interlocked.Increment(ref _unverifiedClientCount);
+
             // Track this connection for later correlation with entityId
             var connectionId = clientInfo.InternalId?.CombinedString ?? Guid.NewGuid().ToString();
             _pendingConnections[connectionId] = DateTime.Now;
 
+            FlightRecorder.Record("MP", $"MOD LOCKED - unverified clients: {_unverifiedClientCount}");
+
             ProxiCraft.Log("======================================================================");
             ProxiCraft.Log("[Multiplayer] NEW CLIENT CONNECTING - Mod IMMEDIATELY LOCKED");
-            ProxiCraft.Log($"  Client: {clientInfo.playerName ?? connectionId}");
+            ProxiCraft.Log($"  Client: {clientName}");
             ProxiCraft.Log($"  Reason: Waiting for ProxiCraft verification handshake");
             ProxiCraft.Log($"  Unverified clients: {_unverifiedClientCount}");
             ProxiCraft.Log("======================================================================");
         }
         catch (Exception ex)
         {
+            FlightRecorder.Record("MP", $"OnClientConnected ERROR: {ex.Message}");
             ProxiCraft.LogDebug($"[Multiplayer] OnClientConnected error: {ex.Message}");
         }
     }
@@ -315,7 +327,8 @@ public static class MultiplayerModTracker
             // If they were unverified, decrement the counter
             if (!wasVerified && wasPending)
             {
-                _unverifiedClientCount = Math.Max(0, _unverifiedClientCount - 1);
+                int newCount = Interlocked.Decrement(ref _unverifiedClientCount);
+                if (newCount < 0) Interlocked.Exchange(ref _unverifiedClientCount, 0); // Clamp to 0
                 ProxiCraft.Log($"[Multiplayer] Unverified player '{playerName}' disconnected (remaining unverified: {_unverifiedClientCount})");
             }
 
@@ -383,40 +396,66 @@ public static class MultiplayerModTracker
     /// This is the "innocent verdict" - they can now be trusted.
     /// Idempotent - safe to call multiple times for retry scenarios.
     /// </summary>
-    public static void OnClientHandshakeReceived(int entityId)
+    /// <param name="entityId">The client's entity ID</param>
+    /// <param name="packetPlayerName">Player name from the handshake packet (used if pending lookup fails)</param>
+    public static void OnClientHandshakeReceived(int entityId, string packetPlayerName = null)
     {
         try
         {
+            FlightRecorder.Record("MP", $"OnClientHandshakeReceived: entityId={entityId}, packetName={packetPlayerName ?? "null"}");
+
             // Check if already verified (duplicate handshake from retry)
             if (_verifiedClients.ContainsKey(entityId))
             {
                 ProxiCraft.LogDebug($"[Multiplayer] Client {entityId} already verified (duplicate handshake - retry scenario)");
                 return; // Idempotent - already processed
             }
-            
-            string playerName = "Unknown";
-            
+
+            string playerName = null;
+            bool foundInPending = false;
+
+            // Try to find in pending clients
             if (_pendingClients.TryGetValue(entityId, out var pendingInfo))
             {
                 pendingInfo.HandshakeReceived = true;
                 playerName = pendingInfo.PlayerName;
-                
+                foundInPending = true;
+
                 // Remove from pending since they're now confirmed
                 _pendingClients.TryRemove(entityId, out _);
+                FlightRecorder.Record("MP", $"Found entityId {entityId} in pendingClients as '{playerName}'");
             }
-            
+
+            // CRASH PREVENTION (Issue #1): If not found in pending, use the packet's player name
+            // This handles the race condition where handshake arrives before spawn event
+            if (string.IsNullOrEmpty(playerName))
+            {
+                playerName = packetPlayerName ?? "Unknown";
+
+                if (!foundInPending)
+                {
+                    FlightRecorder.Record("MP", $"EntityId {entityId} NOT in pendingClients - using packet name '{playerName}'");
+                    ProxiCraft.LogDebug($"[Multiplayer] EntityId {entityId} not found in pending clients (timing race) - using packet name: {playerName}");
+                }
+            }
+
             // Mark as verified
             _verifiedClients[entityId] = true;
-            
-            // Decrement unverified count (clamped to 0)
-            _unverifiedClientCount = Math.Max(0, _unverifiedClientCount - 1);
-            
+
+            // Decrement unverified count atomically (clamped to 0)
+            int newCount = Interlocked.Decrement(ref _unverifiedClientCount);
+            if (newCount < 0) Interlocked.Exchange(ref _unverifiedClientCount, 0); // Clamp to 0
+
             ProxiCraft.Log($"[Multiplayer] Player '{playerName}' confirmed ProxiCraft ✓ (Unverified remaining: {_unverifiedClientCount})");
-            
+            FlightRecorder.Record("MP", $"Player '{playerName}' verified - {_unverifiedClientCount} remaining");
+
             // If all clients verified and no confirmed bad clients, re-enable mod
             if (_unverifiedClientCount <= 0 && !_hostSafetyLockTriggered)
             {
                 _immediatelyLockMod = false;
+                _modReenabledTime = DateTime.Now; // CRASH PREVENTION: Track re-enable time for early window
+
+                FlightRecorder.Record("MP", "All clients verified - MOD RE-ENABLED");
                 ProxiCraft.Log("======================================================================");
                 ProxiCraft.Log("[Multiplayer] All clients verified - Mod RE-ENABLED");
                 ProxiCraft.Log("======================================================================");
@@ -424,6 +463,7 @@ public static class MultiplayerModTracker
         }
         catch (Exception ex)
         {
+            FlightRecorder.Record("MP", $"OnClientHandshakeReceived ERROR: {ex.Message}");
             ProxiCraft.LogDebug($"[Multiplayer] OnClientHandshakeReceived error: {ex.Message}");
         }
     }
@@ -559,7 +599,8 @@ public static class MultiplayerModTracker
             if (_isHosting || SingletonMonoBehaviour<ConnectionManager>.Instance?.IsServer == true)
             {
                 // Mark as verified (idempotent - safe to call multiple times)
-                OnClientHandshakeReceived(entityId);
+                // Pass the playerName from packet in case pending client lookup fails (timing race)
+                OnClientHandshakeReceived(entityId, playerName);
                 
                 // ALWAYS resend config sync - in case previous response was lost
                 // This is the key to handling packet loss gracefully
@@ -783,6 +824,24 @@ public static class MultiplayerModTracker
             // On error, default to allowed (don't break single-player)
             return true;
         }
+    }
+
+    /// <summary>
+    /// Checks if we're in the "early connection window" - the first few seconds after
+    /// all clients were verified and the mod was re-enabled.
+    ///
+    /// CRASH PREVENTION (Issue #2):
+    /// Network operations during this window may be unstable. Callers should skip
+    /// non-essential network operations (like lock broadcasts) during this period.
+    /// </summary>
+    /// <returns>True if within early connection window, false otherwise</returns>
+    public static bool IsInEarlyConnectionWindow()
+    {
+        if (!_modReenabledTime.HasValue)
+            return false;
+
+        var elapsed = (DateTime.Now - _modReenabledTime.Value).TotalSeconds;
+        return elapsed < EARLY_CONNECTION_WINDOW_SECONDS;
     }
 
     /// <summary>
