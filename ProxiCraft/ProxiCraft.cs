@@ -56,7 +56,7 @@ public class ProxiCraft : IModApi
 {
     // Mod metadata
     public const string MOD_NAME = "ProxiCraft";
-    public const string MOD_VERSION = "1.2.7";
+    public const string MOD_VERSION = "1.2.8";
     
     // Static references
     private static ProxiCraft _instance;
@@ -88,6 +88,10 @@ public class ProxiCraft : IModApi
 
         // Initialize network diagnostics (clears log file for fresh session)
         NetworkDiagnostics.Init();
+
+        // Initialize flight recorder for crash diagnostics
+        FlightRecorder.Initialize(_mod.Path);
+        FlightRecorder.Record("INIT", $"ProxiCraft v{MOD_VERSION} starting");
 
         // Run compatibility checks first
         ModCompatibility.ScanForConflicts();
@@ -145,12 +149,33 @@ public class ProxiCraft : IModApi
         if (!data.IsLocalPlayer)
             return;
 
+        FlightRecorder.Record("SPAWN", "Local player spawned in world");
+
         // Schedule cache pre-warm after a short delay (let the world fully load)
         ThreadManager.StartCoroutine(PreWarmCacheDelayed());
 
         // Send multiplayer handshake to announce ProxiCraft presence
         // This helps detect conflicts with other players using different container mods
         ThreadManager.StartCoroutine(SendMultiplayerHandshakeDelayed());
+
+        // Start flight recorder periodic flush
+        ThreadManager.StartCoroutine(FlightRecorderFlushLoop());
+    }
+
+    /// <summary>
+    /// Coroutine that periodically flushes the flight recorder to disk.
+    /// Runs every 5 seconds until the world is unloaded.
+    /// </summary>
+    private static System.Collections.IEnumerator FlightRecorderFlushLoop()
+    {
+        while (GameManager.Instance?.World != null)
+        {
+            yield return new WaitForSeconds(5f);
+            FlightRecorder.UpdateFlush();
+        }
+
+        // World unloaded - clean shutdown
+        FlightRecorder.OnCleanShutdown();
     }
 
     /// <summary>
@@ -756,6 +781,8 @@ public class ProxiCraft : IModApi
         {
             try
             {
+                FlightRecorder.Record("GAME", "New game starting - clearing previous session state");
+
                 // Reset multiplayer state from any previous session
                 // OnStopHosting unregisters event handlers (safe to call even if wasn't hosting)
                 MultiplayerModTracker.OnStopHosting();
@@ -846,13 +873,26 @@ public class ProxiCraft : IModApi
 
     /// <summary>
     /// Broadcasts lock/unlock state to clients. Shared logic for lock and unlock patches.
+    ///
+    /// CRASH PREVENTION (Issue #2):
+    /// - Skip broadcasting during early connection window (first 3 seconds after handshake)
+    /// - Wrap SendPackage in defensive try-catch to prevent crashes from network instability
+    /// - Log failures for diagnostics but don't crash the game
     /// </summary>
     private static void BroadcastLockState(GameManager gm, ConnectionManager connManager, Vector3i blockPos, int lootEntityId, bool unlock)
     {
         try
         {
-            var tileEntity = lootEntityId != -1 
-                ? gm.m_World.GetTileEntity(lootEntityId) 
+            // CRASH PREVENTION: Skip broadcasting during early connection window
+            // Network may be unstable right after handshake completes
+            if (MultiplayerModTracker.IsInEarlyConnectionWindow())
+            {
+                LogDebug($"[Network] Skipping {(unlock ? "unlock" : "lock")} broadcast at {blockPos} - early connection window");
+                return;
+            }
+
+            var tileEntity = lootEntityId != -1
+                ? gm.m_World.GetTileEntity(lootEntityId)
                 : gm.m_World.GetTileEntity(blockPos);
 
             if (tileEntity == null)
@@ -860,22 +900,46 @@ public class ProxiCraft : IModApi
 
             // For lock: check if it IS in lockedTileEntities (just got locked)
             // For unlock: check if it's NOT in lockedTileEntities (just got unlocked)
-            bool shouldBroadcast = unlock 
+            bool shouldBroadcast = unlock
                 ? !gm.lockedTileEntities.ContainsKey((ITileEntity)(object)tileEntity)
                 : gm.lockedTileEntities.ContainsKey((ITileEntity)(object)tileEntity);
 
             if (shouldBroadcast)
             {
+                FlightRecorder.Record("NETWORK", $"Broadcasting container {(unlock ? "unlock" : "lock")} at {blockPos}");
                 LogDebug($"[Network] Broadcasting container {(unlock ? "unlock" : "lock")} at {blockPos}");
-                var packet = NetPackageManager.GetPackage<NetPackagePCLock>().Setup(blockPos, unlock);
-                connManager.SendPackage((NetPackage)(object)packet, true, -1, -1, -1, null, 192, false);
+
+                // CRASH PREVENTION: Wrap SendPackage in separate try-catch
+                // If this fails, log and continue - don't crash the game
+                try
+                {
+                    var packet = NetPackageManager.GetPackage<NetPackagePCLock>().Setup(blockPos, unlock);
+                    connManager.SendPackage((NetPackage)(object)packet, true, -1, -1, -1, null, 192, false);
+                }
+                catch (Exception sendEx)
+                {
+                    // Log the failure but don't crash - container will just be briefly out of sync
+                    _lockBroadcastFailCount++;
+                    FlightRecorder.Record("NETWORK", $"SendPackage FAILED at {blockPos}: {sendEx.Message}");
+                    LogWarning($"[Network] Lock broadcast failed at {blockPos} (total failures: {_lockBroadcastFailCount}): {sendEx.Message}");
+
+                    // If we're seeing many failures, something is seriously wrong - log prominently
+                    if (_lockBroadcastFailCount >= 5 && _lockBroadcastFailCount % 5 == 0)
+                    {
+                        Log($"[Network] WARNING: {_lockBroadcastFailCount} lock broadcast failures. Network may be unstable.");
+                    }
+                }
             }
         }
         catch (Exception ex)
         {
-            LogWarning($"[Network] Error broadcasting {(unlock ? "unlock" : "lock")}: {ex.Message}");
+            FlightRecorder.Record("NETWORK", $"BroadcastLockState ERROR: {ex.Message}");
+            LogWarning($"[Network] Error in BroadcastLockState: {ex.Message}");
         }
     }
+
+    // Track broadcast failures for diagnostics
+    private static int _lockBroadcastFailCount = 0;
 
     /// <summary>
     /// Retry broadcasting lock state after a brief delay.
@@ -946,7 +1010,19 @@ public class ProxiCraft : IModApi
             try
             {
                 // Find the tile entity that this player has locked (if any)
-                foreach (var kvp in __instance.lockedTileEntities)
+                // Take a snapshot to prevent concurrent modification during iteration
+                KeyValuePair<ITileEntity, int>[] snapshot;
+                try
+                {
+                    snapshot = __instance.lockedTileEntities.ToArray();
+                }
+                catch
+                {
+                    // Collection modified during snapshot - skip this cleanup pass
+                    return;
+                }
+
+                foreach (var kvp in snapshot)
                 {
                     if (kvp.Value == _entityId)
                     {
