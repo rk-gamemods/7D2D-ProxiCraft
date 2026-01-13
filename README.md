@@ -440,16 +440,18 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 
 ## Changelog
 
-### v1.2.8 - Multiplayer Crash Fix
+### v1.2.8 - Multiplayer Stability Improvements
 
-**Fixed:**
-- Fixed multiplayer crash when client opens containers (reported by users in Russia and US)
-- Fixed "Player Unknown" showing instead of actual player name during handshake
-- Fixed rare crashes during player disconnect
+Investigating reported crash: "Host crashes when client opens containers"
 
-**New:**
+**Changes:**
+- Added thread-safe counters for client verification
+- Added defensive snapshots when iterating container locks during disconnect
+- Player name now falls back to handshake packet when entity lookup fails
 - Added crash diagnostics to `pc_debug.log`
 - Log file now self-manages size
+
+Please report back if you were experiencing multiplayer crashes!
 
 ### v1.2.7 - Network Stability & Robustness Improvements
 
