@@ -157,25 +157,6 @@ public class ProxiCraft : IModApi
         // Send multiplayer handshake to announce ProxiCraft presence
         // This helps detect conflicts with other players using different container mods
         ThreadManager.StartCoroutine(SendMultiplayerHandshakeDelayed());
-
-        // Start flight recorder periodic flush
-        ThreadManager.StartCoroutine(FlightRecorderFlushLoop());
-    }
-
-    /// <summary>
-    /// Coroutine that periodically flushes the flight recorder to disk.
-    /// Runs every 5 seconds until the world is unloaded.
-    /// </summary>
-    private static System.Collections.IEnumerator FlightRecorderFlushLoop()
-    {
-        while (GameManager.Instance?.World != null)
-        {
-            yield return new WaitForSeconds(5f);
-            FlightRecorder.UpdateFlush();
-        }
-
-        // World unloaded - clean shutdown
-        FlightRecorder.OnCleanShutdown();
     }
 
     /// <summary>
@@ -480,9 +461,8 @@ public class ProxiCraft : IModApi
     
     private static string _logFilePath;
     private static int _logWriteCount;
-    private const int LOG_ROTATION_CHECK_INTERVAL = 50;  // Check size every N writes
-    private const long LOG_MAX_SIZE_BYTES = 100 * 1024;  // 100KB max
-    private const long LOG_TRUNCATE_TO_BYTES = 50 * 1024; // Keep last 50KB on rotation
+    private const int LOG_ROTATION_CHECK_INTERVAL = 50;
+    private const long LOG_MAX_SIZE_BYTES = 100 * 1024;  // 100KB
     
     private static void InitFileLog()
     {
@@ -490,23 +470,16 @@ public class ProxiCraft : IModApi
         {
             _logFilePath = ModPath.DebugLogPath;
             _logWriteCount = 0;
-            // Clear old log on startup
             try { File.WriteAllText(_logFilePath, $"=== ProxiCraft Log Started {DateTime.Now} ===\n"); } catch { }
         }
     }
     
-    /// <summary>
-    /// Internal file logging - always writes to file regardless of debug settings.
-    /// Self-rotates at 100KB to prevent unbounded growth.
-    /// </summary>
     private static void FileLogInternal(string message)
     {
         InitFileLog();
         try
         {
             File.AppendAllText(_logFilePath, $"[{DateTime.Now:HH:mm:ss.fff}] {message}\n");
-            
-            // Check for rotation periodically (not every write for performance)
             _logWriteCount++;
             if (_logWriteCount >= LOG_ROTATION_CHECK_INTERVAL)
             {
@@ -517,9 +490,6 @@ public class ProxiCraft : IModApi
         catch { }
     }
     
-    /// <summary>
-    /// Rotates log file if it exceeds max size. Keeps the most recent entries.
-    /// </summary>
     private static void RotateLogIfNeeded()
     {
         try
@@ -528,24 +498,18 @@ public class ProxiCraft : IModApi
             if (!fileInfo.Exists || fileInfo.Length <= LOG_MAX_SIZE_BYTES)
                 return;
             
-            // Read file, keep last portion
             var content = File.ReadAllText(_logFilePath);
-            if (content.Length > LOG_TRUNCATE_TO_BYTES)
+            var startIndex = content.Length - (int)LOG_MAX_SIZE_BYTES;
+            if (startIndex > 0)
             {
-                // Find a newline near the truncation point to avoid cutting mid-line
-                var startIndex = content.Length - (int)LOG_TRUNCATE_TO_BYTES;
                 var newlineIndex = content.IndexOf('\n', startIndex);
-                if (newlineIndex > 0 && newlineIndex < content.Length - 1000)
-                {
+                if (newlineIndex > 0)
                     startIndex = newlineIndex + 1;
-                }
                 
-                var truncated = $"=== Log rotated {DateTime.Now} (kept last {LOG_TRUNCATE_TO_BYTES / 1024}KB) ===\n" 
-                    + content.Substring(startIndex);
-                File.WriteAllText(_logFilePath, truncated);
+                File.WriteAllText(_logFilePath, $"=== Log rotated {DateTime.Now} ===\n" + content.Substring(startIndex));
             }
         }
-        catch { } // Rotation failure is non-critical
+        catch { }
     }
     
     /// <summary>
