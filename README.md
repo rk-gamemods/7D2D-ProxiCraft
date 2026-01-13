@@ -450,8 +450,7 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 - Fixed GetStorageItems iteration without snapshot causing rare InvalidOperationException
 
 **New:**
-- Added FlightRecorder crash diagnostics system - captures last 50 events before crash
-- Flight recorder output saved to `flight_recorder.log` on crash or clean shutdown
+- Added FlightRecorder crash diagnostics - look for `[FR]` entries in `pc_debug.log` for crash context
 
 ### v1.2.7 - Network Stability & Robustness Improvements
 

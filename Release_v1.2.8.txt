@@ -13,8 +13,8 @@ Multiplayer Thread Safety & Crash Prevention
 
 [b]New:[/b]
 [list]
-[*]Added FlightRecorder crash diagnostics system - captures last 50 events before crash
-[*]Flight recorder output saved to ProxiCraft/flight_recorder.log on crash or clean shutdown
+[*]Added FlightRecorder crash diagnostics - captures last 100 events with [FR] tag in pc_debug.log
+[*]Look for [FR] entries in pc_debug.log to see crash context
 [/list]
 
 [b]Technical Changes:[/b]
