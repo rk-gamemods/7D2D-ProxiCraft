@@ -356,6 +356,15 @@ Use only ONE mod of this type.
 
 [size=4][b]Changelog[/b][/size]
 
+[b]v1.2.8[/b]
+[list]
+[*]Fixed race condition in client verification counter causing potential unlock failures
+[*]Fixed potential crash when iterating container locks during player disconnect
+[*]Fixed thread safety issues in item count cache that could cause rare crashes
+[*]Fixed concurrent modification vulnerability in storage priority ordering
+[*]Added FlightRecorder crash diagnostics - captures last 50 events before crash
+[/list]
+
 [b]v1.2.7[/b]
 [list]
 [*]Fixed multiplayer handshake packet loss causing mod to lock up for entire server session
