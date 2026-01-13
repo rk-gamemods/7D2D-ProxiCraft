@@ -62,6 +62,7 @@ public static class FlightRecorder
         {
             Record("Clean shutdown");
             ProxiCraft.FileLogAlways(CLEAN_EXIT_MARKER);
+            ProxiCraft.CloseLogWriter();  // Close StreamWriter on clean exit
         }
         catch { }
     }

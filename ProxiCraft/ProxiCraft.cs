@@ -460,17 +460,23 @@ public class ProxiCraft : IModApi
     #region Logging
     
     private static string _logFilePath;
+    private static StreamWriter _logWriter;
     private static int _logWriteCount;
     private const int LOG_ROTATION_CHECK_INTERVAL = 50;
     private const long LOG_MAX_SIZE_BYTES = 100 * 1024;  // 100KB
     
     private static void InitFileLog()
     {
-        if (_logFilePath == null)
+        if (_logWriter == null)
         {
             _logFilePath = ModPath.DebugLogPath;
             _logWriteCount = 0;
-            try { File.WriteAllText(_logFilePath, $"=== ProxiCraft Log Started {DateTime.Now} ===\n"); } catch { }
+            try
+            {
+                _logWriter = new StreamWriter(_logFilePath, append: false) { AutoFlush = true };
+                _logWriter.WriteLine($"=== ProxiCraft Log Started {DateTime.Now} ===");
+            }
+            catch { }
         }
     }
     
@@ -479,7 +485,7 @@ public class ProxiCraft : IModApi
         InitFileLog();
         try
         {
-            File.AppendAllText(_logFilePath, $"[{DateTime.Now:HH:mm:ss.fff}] {message}\n");
+            _logWriter?.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] {message}");
             _logWriteCount++;
             if (_logWriteCount >= LOG_ROTATION_CHECK_INTERVAL)
             {
@@ -494,9 +500,14 @@ public class ProxiCraft : IModApi
     {
         try
         {
-            var fileInfo = new System.IO.FileInfo(_logFilePath);
+            _logWriter?.Flush();
+            var fileInfo = new FileInfo(_logFilePath);
             if (!fileInfo.Exists || fileInfo.Length <= LOG_MAX_SIZE_BYTES)
                 return;
+            
+            // Close writer to read/rewrite file
+            _logWriter?.Dispose();
+            _logWriter = null;
             
             var content = File.ReadAllText(_logFilePath);
             var startIndex = content.Length - (int)LOG_MAX_SIZE_BYTES;
@@ -506,8 +517,26 @@ public class ProxiCraft : IModApi
                 if (newlineIndex > 0)
                     startIndex = newlineIndex + 1;
                 
-                File.WriteAllText(_logFilePath, $"=== Log rotated {DateTime.Now} ===\n" + content.Substring(startIndex));
+                content = $"=== Log rotated {DateTime.Now} ===\n" + content.Substring(startIndex);
             }
+            
+            // Reopen writer with rotated content
+            _logWriter = new StreamWriter(_logFilePath, append: false) { AutoFlush = true };
+            _logWriter.Write(content);
+        }
+        catch { }
+    }
+    
+    /// <summary>
+    /// Cleanup log writer on shutdown. Called by FlightRecorder.OnCleanShutdown().
+    /// On crash, OS reclaims the file handle automatically - no leak.
+    /// </summary>
+    public static void CloseLogWriter()
+    {
+        try
+        {
+            _logWriter?.Dispose();
+            _logWriter = null;
         }
         catch { }
     }
@@ -813,6 +842,23 @@ public class ProxiCraft : IModApi
             {
                 LogWarning($"Error clearing state: {ex.Message}");
             }
+        }
+    }
+
+    /// <summary>
+    /// Clean shutdown when world is saved and cleaned up (exiting to menu or quitting).
+    /// </summary>
+    [HarmonyPatch(typeof(GameManager), nameof(GameManager.SaveAndCleanupWorld))]
+    [HarmonyPriority(Priority.Low)]
+    public static class GameManager_SaveAndCleanupWorld_Patch
+    {
+        public static void Prefix()
+        {
+            try
+            {
+                FlightRecorder.OnCleanShutdown();
+            }
+            catch { }
         }
     }
 
