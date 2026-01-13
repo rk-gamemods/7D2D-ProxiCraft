@@ -13,8 +13,8 @@ Multiplayer Thread Safety & Crash Prevention
 
 [b]New:[/b]
 [list]
-[*]Added FlightRecorder crash diagnostics - captures last 100 events with [FR] tag in pc_debug.log
-[*]Look for [FR] entries in pc_debug.log to see crash context
+[*]Added crash diagnostics - look for [FR] entries in pc_debug.log if reporting issues
+[*]Log file now self-manages size (won't grow forever)
 [/list]
 
 [b]Technical Changes:[/b]
@@ -36,4 +36,4 @@ Multiplayer Thread Safety & Crash Prevention
 
 [b]Reporting Issues[/b]
 Found a bug? [url=https://github.com/rk-gamemods/7D2D-ProxiCraft/issues]Open an issue on GitHub[/url]
-Include flight_recorder.log and pc_debug.log from your ProxiCraft folder.
+Include pc_debug.log from your ProxiCraft folder.
