@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using HarmonyLib;
@@ -93,14 +94,27 @@ public class EntityStorage
 /// </summary>
 public static class ContainerManager
 {
-    // Thread-safe caches for storage references
-    private static readonly Dictionary<Vector3i, object> _knownStorageDict = new Dictionary<Vector3i, object>();
-    private static readonly Dictionary<Vector3i, object> _currentStorageDict = new Dictionary<Vector3i, object>();
-    
+    // THREAD-SAFE caches for storage references (CRASH PREVENTION Issue #3)
+    // ConcurrentDictionary prevents "collection modified during enumeration" crashes
+    // that can occur when network events modify caches while UI code iterates them
+    private static readonly ConcurrentDictionary<Vector3i, object> _knownStorageDict = new ConcurrentDictionary<Vector3i, object>();
+    private static readonly ConcurrentDictionary<Vector3i, object> _currentStorageDict = new ConcurrentDictionary<Vector3i, object>();
+
     // Lock positions from multiplayer sync - with timestamps for expiration and ordering
-    public static readonly HashSet<Vector3i> LockedList = new HashSet<Vector3i>();
-    private static readonly Dictionary<Vector3i, long> _lockTimestamps = new Dictionary<Vector3i, long>();
-    private static readonly Dictionary<Vector3i, long> _lockPacketTimestamps = new Dictionary<Vector3i, long>(); // For ordering
+    // Using ConcurrentDictionary<K, byte> as thread-safe HashSet alternative
+    private static readonly ConcurrentDictionary<Vector3i, byte> _lockedPositions = new ConcurrentDictionary<Vector3i, byte>();
+    private static readonly ConcurrentDictionary<Vector3i, long> _lockTimestamps = new ConcurrentDictionary<Vector3i, long>();
+    private static readonly ConcurrentDictionary<Vector3i, long> _lockPacketTimestamps = new ConcurrentDictionary<Vector3i, long>();
+
+    /// <summary>
+    /// Gets whether a position is in the locked list. Thread-safe.
+    /// </summary>
+    public static bool IsPositionLocked(Vector3i pos) => _lockedPositions.ContainsKey(pos);
+
+    /// <summary>
+    /// Legacy access to locked positions. Returns a snapshot for iteration safety.
+    /// </summary>
+    public static HashSet<Vector3i> LockedList => new HashSet<Vector3i>(_lockedPositions.Keys);
     
     // Cache timing to avoid excessive scanning
     private static float _lastScanTime;
@@ -143,8 +157,14 @@ public static class ContainerManager
     // - Single scan of 100+ storage locations: ~5-20ms (acceptable)
     // - Checking 20 recipe ingredients with cache: ~0.1ms (vs 100-400ms without)
     // - Net result: Smooth UI, no lag spikes
+    //
+    // THREAD SAFETY (v1.2.8):
+    // - _itemCountCache uses dedicated lock (_itemCountLock) for thread-safe access
+    // - Lock is separate from other operations to minimize contention
+    // - Cache rebuild is atomic - readers wait for complete rebuild
     // ====================================================================================
     private static readonly Dictionary<int, int> _itemCountCache = new Dictionary<int, int>();
+    private static readonly object _itemCountLock = new object(); // Dedicated lock for cache thread safety
     private static float _lastItemCountTime;
     private const float ITEM_COUNT_CACHE_DURATION = 0.1f; // Cache counts for 100ms (reduced from 250ms for responsiveness)
     private static bool _itemCountCacheValid = false;
@@ -330,7 +350,7 @@ public static class ContainerManager
         _knownStorageDict.Clear();
         _currentStorageDict.Clear();
         _itemCountCache.Clear();
-        LockedList.Clear();
+        _lockedPositions.Clear();
         _lockTimestamps.Clear();
         _lockPacketTimestamps.Clear();
         _lastScanTime = 0f;
@@ -374,7 +394,7 @@ public static class ContainerManager
 
         _lockPacketTimestamps[position] = packetTimestamp;
         _lockTimestamps[position] = DateTime.UtcNow.Ticks;
-        LockedList.Add(position);
+        _lockedPositions.TryAdd(position, 0);
         ProxiCraft.LogDebug($"[Network] Container locked at {position}");
     }
 
@@ -394,8 +414,8 @@ public static class ContainerManager
         }
 
         _lockPacketTimestamps[position] = packetTimestamp;
-        _lockTimestamps.Remove(position);
-        LockedList.Remove(position);
+        _lockTimestamps.TryRemove(position, out _);
+        _lockedPositions.TryRemove(position, out _);
         ProxiCraft.LogDebug($"[Network] Container unlocked at {position}");
     }
 
@@ -407,7 +427,7 @@ public static class ContainerManager
     /// <returns>True if container is locked (and not expired)</returns>
     public static bool IsContainerLocked(Vector3i position)
     {
-        if (!LockedList.Contains(position))
+        if (!_lockedPositions.ContainsKey(position))
             return false;
 
         // Check expiration
@@ -416,13 +436,13 @@ public static class ContainerManager
         {
             var lockTime = new DateTime(lockTicks, DateTimeKind.Utc);
             var elapsed = (DateTime.UtcNow - lockTime).TotalSeconds;
-            
+
             if (elapsed > expirySeconds)
             {
                 // Lock expired - auto-remove
-                LockedList.Remove(position);
-                _lockTimestamps.Remove(position);
-                _lockPacketTimestamps.Remove(position);
+                _lockedPositions.TryRemove(position, out _);
+                _lockTimestamps.TryRemove(position, out _);
+                _lockPacketTimestamps.TryRemove(position, out _);
                 ProxiCraft.Log($"[Network] Lock expired for container at {position} (after {elapsed:F0}s)");
                 return false;
             }
@@ -436,20 +456,22 @@ public static class ContainerManager
     /// </summary>
     public static string GetLockDiagnostics()
     {
-        if (LockedList.Count == 0)
+        var lockCount = _lockedPositions.Count;
+        if (lockCount == 0)
             return "No containers locked";
 
-        var lines = new List<string> { $"Locked containers: {LockedList.Count}" };
+        var lines = new List<string> { $"Locked containers: {lockCount}" };
         var expirySeconds = ProxiCraft.Config?.containerLockExpirySeconds ?? 300f;
-        
-        foreach (var pos in LockedList.ToList()) // ToList to avoid modification during iteration
+
+        // Take snapshot of keys for thread-safe iteration
+        foreach (var pos in _lockedPositions.Keys.ToList())
         {
             if (_lockTimestamps.TryGetValue(pos, out var lockTicks))
             {
                 var lockTime = new DateTime(lockTicks, DateTimeKind.Utc);
                 var elapsed = (DateTime.UtcNow - lockTime).TotalSeconds;
                 var remaining = expirySeconds > 0 ? expirySeconds - elapsed : -1;
-                lines.Add($"  {pos}: locked {elapsed:F0}s ago" + 
+                lines.Add($"  {pos}: locked {elapsed:F0}s ago" +
                          (remaining > 0 ? $" (expires in {remaining:F0}s)" : " (no expiry)"));
             }
             else
@@ -596,7 +618,21 @@ public static class ContainerManager
         {
             RefreshStorages(config);
 
-            foreach (var kvp in _currentStorageDict)
+            // THREAD SAFETY (v1.2.8): Take snapshot before iteration to avoid concurrent modification
+            // ConcurrentDictionary's enumerator is safe but may see inconsistent state during iteration
+            KeyValuePair<Vector3i, object>[] storageSnapshot;
+            try
+            {
+                storageSnapshot = _currentStorageDict.ToArray();
+            }
+            catch (Exception snapshotEx)
+            {
+                // Extremely rare - collection modified in a way that breaks ToArray
+                ProxiCraft.LogWarning($"GetStorageItems snapshot failed: {snapshotEx.Message}");
+                return items;
+            }
+
+            foreach (var kvp in storageSnapshot)
             {
                 try
                 {
@@ -726,12 +762,14 @@ public static class ContainerManager
                 }
                 catch (Exception ex)
                 {
+                    // Individual container error - log but continue with others
                     ProxiCraft.LogWarning($"Error reading container at {kvp.Key}: {ex.Message}");
                 }
             }
         }
         catch (Exception ex)
         {
+            FlightRecorder.RecordException(ex, "GetStorageItems");
             ProxiCraft.LogError($"Error getting storage items: {ex.Message}");
         }
 
@@ -811,6 +849,10 @@ public static class ContainerManager
     /// - Within same frame: Always uses cache (ingredient checks happen in bursts)
     /// - After cache duration: Rebuilds cache (ensures freshness)
     /// - After InvalidateCache(): Rebuilds cache (responds to storage changes)
+    /// 
+    /// THREAD SAFETY (v1.2.8):
+    /// - Cache access is protected by _itemCountLock
+    /// - Lock is held briefly for reads, longer for rebuilds
     /// </summary>
     public static int GetItemCount(ModConfig config, ItemValue item)
     {
@@ -824,32 +866,35 @@ public static class ContainerManager
             float currentTime = Time.time;
             int currentFrame = Time.frameCount;
             
-            // FAST PATH: Same frame as last cache build - always use cache
-            // This handles the common case of checking multiple recipe ingredients in one update
-            if (_itemCountCacheValid && currentFrame == _lastItemCountFrame)
+            lock (_itemCountLock)
             {
-                PerformanceProfiler.RecordCacheHit(PerformanceProfiler.OP_GET_ITEM_COUNT);
-                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
-                return _itemCountCache.TryGetValue(item.type, out int frameCount) ? frameCount : 0;
-            }
-            
-            // Check if we have a valid cached count (time-based expiry)
-            if (_itemCountCacheValid && 
-                (currentTime - _lastItemCountTime) < ITEM_COUNT_CACHE_DURATION &&
-                _itemCountCache.TryGetValue(item.type, out int cachedCount))
-            {
-                PerformanceProfiler.RecordCacheHit(PerformanceProfiler.OP_GET_ITEM_COUNT);
-                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
-                return cachedCount;
-            }
+                // FAST PATH: Same frame as last cache build - always use cache
+                // This handles the common case of checking multiple recipe ingredients in one update
+                if (_itemCountCacheValid && currentFrame == _lastItemCountFrame)
+                {
+                    PerformanceProfiler.RecordCacheHit(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                    PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                    return _itemCountCache.TryGetValue(item.type, out int frameCount) ? frameCount : 0;
+                }
+                
+                // Check if we have a valid cached count (time-based expiry)
+                if (_itemCountCacheValid && 
+                    (currentTime - _lastItemCountTime) < ITEM_COUNT_CACHE_DURATION &&
+                    _itemCountCache.TryGetValue(item.type, out int cachedCount))
+                {
+                    PerformanceProfiler.RecordCacheHit(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                    PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                    return cachedCount;
+                }
 
-            // Cache miss or expired - rebuild the entire cache
-            PerformanceProfiler.RecordCacheMiss(PerformanceProfiler.OP_GET_ITEM_COUNT);
-            RebuildItemCountCache(config);
-            
-            PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
-            // Return the count (may be 0 if item not in storage)
-            return _itemCountCache.TryGetValue(item.type, out int count) ? count : 0;
+                // Cache miss or expired - rebuild the entire cache (still under lock)
+                PerformanceProfiler.RecordCacheMiss(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                RebuildItemCountCacheInternal(config);
+                
+                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                // Return the count (may be 0 if item not in storage)
+                return _itemCountCache.TryGetValue(item.type, out int count) ? count : 0;
+            }
         }
         catch (Exception ex)
         {
@@ -878,30 +923,33 @@ public static class ContainerManager
             float currentTime = Time.time;
             int currentFrame = Time.frameCount;
             
-            // FAST PATH: Same frame as last cache build - always use cache
-            if (_itemCountCacheValid && currentFrame == _lastItemCountFrame)
+            lock (_itemCountLock)
             {
-                PerformanceProfiler.RecordCacheHit(PerformanceProfiler.OP_GET_ITEM_COUNT);
-                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
-                return _itemCountCache.TryGetValue(itemId, out int frameCount) ? frameCount : 0;
-            }
-            
-            // Check if we have a valid cached count (time-based expiry)
-            if (_itemCountCacheValid && 
-                (currentTime - _lastItemCountTime) < ITEM_COUNT_CACHE_DURATION &&
-                _itemCountCache.TryGetValue(itemId, out int cachedCount))
-            {
-                PerformanceProfiler.RecordCacheHit(PerformanceProfiler.OP_GET_ITEM_COUNT);
-                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
-                return cachedCount;
-            }
+                // FAST PATH: Same frame as last cache build - always use cache
+                if (_itemCountCacheValid && currentFrame == _lastItemCountFrame)
+                {
+                    PerformanceProfiler.RecordCacheHit(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                    PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                    return _itemCountCache.TryGetValue(itemId, out int frameCount) ? frameCount : 0;
+                }
+                
+                // Check if we have a valid cached count (time-based expiry)
+                if (_itemCountCacheValid && 
+                    (currentTime - _lastItemCountTime) < ITEM_COUNT_CACHE_DURATION &&
+                    _itemCountCache.TryGetValue(itemId, out int cachedCount))
+                {
+                    PerformanceProfiler.RecordCacheHit(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                    PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                    return cachedCount;
+                }
 
-            // Cache miss or expired - rebuild the entire cache
-            PerformanceProfiler.RecordCacheMiss(PerformanceProfiler.OP_GET_ITEM_COUNT);
-            RebuildItemCountCache(config);
-            
-            PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
-            return _itemCountCache.TryGetValue(itemId, out int count) ? count : 0;
+                // Cache miss or expired - rebuild the entire cache (still under lock)
+                PerformanceProfiler.RecordCacheMiss(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                RebuildItemCountCacheInternal(config);
+                
+                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_GET_ITEM_COUNT);
+                return _itemCountCache.TryGetValue(itemId, out int count) ? count : 0;
+            }
         }
         catch (Exception ex)
         {
@@ -912,10 +960,22 @@ public static class ContainerManager
     }
 
     /// <summary>
-    /// Rebuilds the item count cache by scanning all storage sources once.
-    /// This is much more efficient than scanning per-item-type.
+    /// Public wrapper for cache rebuild - acquires lock before calling internal method.
     /// </summary>
     private static void RebuildItemCountCache(ModConfig config)
+    {
+        lock (_itemCountLock)
+        {
+            RebuildItemCountCacheInternal(config);
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds the item count cache by scanning all storage sources once.
+    /// This is much more efficient than scanning per-item-type.
+    /// MUST be called while holding _itemCountLock.
+    /// </summary>
+    private static void RebuildItemCountCacheInternal(ModConfig config)
     {
         PerformanceProfiler.StartTimer(PerformanceProfiler.OP_REBUILD_CACHE);
         
@@ -1108,6 +1168,7 @@ public static class ContainerManager
         catch (Exception ex)
         {
             PerformanceProfiler.StopTimer(PerformanceProfiler.OP_REBUILD_CACHE);
+            FlightRecorder.RecordException(ex, "RebuildItemCountCache");
             ProxiCraft.LogError($"Error rebuilding item count cache: {ex.Message}");
             _itemCountCacheValid = false;
         }
@@ -1819,6 +1880,7 @@ public static class ContainerManager
         }
         catch (Exception ex)
         {
+            FlightRecorder.RecordException(ex, "RemoveItems");
             ProxiCraft.LogError($"Error removing items: {ex.Message}");
         }
 
@@ -2034,8 +2096,8 @@ public static class ContainerManager
         
         foreach (var key in keysToRemove)
         {
-            _currentStorageDict.Remove(key);
-            _knownStorageDict.Remove(key);
+            _currentStorageDict.TryRemove(key, out _);
+            _knownStorageDict.TryRemove(key, out _);
         }
         
         if (keysToRemove.Count > 0)
