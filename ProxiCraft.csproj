@@ -42,6 +42,7 @@
     <Compile Include="ProxiCraft\MultiplayerModTracker.cs" />
     <Compile Include="ProxiCraft\NetworkDiagnostics.cs" />
     <Compile Include="ProxiCraft\VirtualInventoryProvider.cs" />
+    <Compile Include="ProxiCraft\FlightRecorder.cs" />
   </ItemGroup>
 
   <ItemGroup>
