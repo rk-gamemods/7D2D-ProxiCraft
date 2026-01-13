@@ -479,20 +479,25 @@ public class ProxiCraft : IModApi
     #region Logging
     
     private static string _logFilePath;
+    private static int _logWriteCount;
+    private const int LOG_ROTATION_CHECK_INTERVAL = 50;  // Check size every N writes
+    private const long LOG_MAX_SIZE_BYTES = 100 * 1024;  // 100KB max
+    private const long LOG_TRUNCATE_TO_BYTES = 50 * 1024; // Keep last 50KB on rotation
     
     private static void InitFileLog()
     {
         if (_logFilePath == null)
         {
             _logFilePath = ModPath.DebugLogPath;
+            _logWriteCount = 0;
             // Clear old log on startup
-            try { File.WriteAllText(_logFilePath, $"=== PC Debug Log Started {DateTime.Now} ===\n"); } catch { }
+            try { File.WriteAllText(_logFilePath, $"=== ProxiCraft Log Started {DateTime.Now} ===\n"); } catch { }
         }
     }
     
     /// <summary>
     /// Internal file logging - always writes to file regardless of debug settings.
-    /// Use sparingly - only for errors, warnings, and critical startup messages.
+    /// Self-rotates at 100KB to prevent unbounded growth.
     /// </summary>
     private static void FileLogInternal(string message)
     {
@@ -500,8 +505,56 @@ public class ProxiCraft : IModApi
         try
         {
             File.AppendAllText(_logFilePath, $"[{DateTime.Now:HH:mm:ss.fff}] {message}\n");
+            
+            // Check for rotation periodically (not every write for performance)
+            _logWriteCount++;
+            if (_logWriteCount >= LOG_ROTATION_CHECK_INTERVAL)
+            {
+                _logWriteCount = 0;
+                RotateLogIfNeeded();
+            }
         }
         catch { }
+    }
+    
+    /// <summary>
+    /// Rotates log file if it exceeds max size. Keeps the most recent entries.
+    /// </summary>
+    private static void RotateLogIfNeeded()
+    {
+        try
+        {
+            var fileInfo = new System.IO.FileInfo(_logFilePath);
+            if (!fileInfo.Exists || fileInfo.Length <= LOG_MAX_SIZE_BYTES)
+                return;
+            
+            // Read file, keep last portion
+            var content = File.ReadAllText(_logFilePath);
+            if (content.Length > LOG_TRUNCATE_TO_BYTES)
+            {
+                // Find a newline near the truncation point to avoid cutting mid-line
+                var startIndex = content.Length - (int)LOG_TRUNCATE_TO_BYTES;
+                var newlineIndex = content.IndexOf('\n', startIndex);
+                if (newlineIndex > 0 && newlineIndex < content.Length - 1000)
+                {
+                    startIndex = newlineIndex + 1;
+                }
+                
+                var truncated = $"=== Log rotated {DateTime.Now} (kept last {LOG_TRUNCATE_TO_BYTES / 1024}KB) ===\n" 
+                    + content.Substring(startIndex);
+                File.WriteAllText(_logFilePath, truncated);
+            }
+        }
+        catch { } // Rotation failure is non-critical
+    }
+    
+    /// <summary>
+    /// Always writes to log file regardless of debug setting.
+    /// Used by FlightRecorder for crash diagnostics.
+    /// </summary>
+    public static void FileLogAlways(string message)
+    {
+        FileLogInternal(message);
     }
     
     /// <summary>
