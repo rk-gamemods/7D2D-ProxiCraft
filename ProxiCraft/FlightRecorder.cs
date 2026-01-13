@@ -53,9 +53,9 @@ public static class FlightRecorder
                 _buffer.Clear();
             }
 
-            // Log session start with [FR] tag
-            ProxiCraft.Log($"{TAG} === SESSION START {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===");
-            Record("FlightRecorder initialized - crash diagnostics active");
+            // Log session start to main log file (always, not debug-dependent)
+            ProxiCraft.FileLogAlways($"{TAG} === SESSION START {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===");
+            Record("FlightRecorder initialized");
         }
         catch (Exception ex)
         {
@@ -123,8 +123,9 @@ public static class FlightRecorder
     }
 
     /// <summary>
-    /// Forces an immediate flush of the buffer to the main log.
+    /// Forces an immediate flush of the buffer to pc_debug.log.
     /// Only writes entries that haven't been written yet.
+    /// Always active - log file self-rotates at 100KB.
     /// </summary>
     public static void FlushToLog()
     {
@@ -146,7 +147,7 @@ public static class FlightRecorder
                 // TryAdd returns false if key already exists - atomic check-and-add
                 if (_flushedEntries.TryAdd(entry, 0))
                 {
-                    ProxiCraft.Log(entry);
+                    ProxiCraft.FileLogAlways(entry);
                 }
             }
         }
@@ -166,11 +167,11 @@ public static class FlightRecorder
 
         try
         {
-            Record("Clean shutdown initiated");
+            Record("Clean shutdown");
             FlushToLog(); // Ensure all entries are written
 
             // Write clean exit marker
-            ProxiCraft.Log(CLEAN_EXIT_MARKER);
+            ProxiCraft.FileLogAlways(CLEAN_EXIT_MARKER);
         }
         catch
         {
