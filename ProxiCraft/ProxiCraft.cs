@@ -969,7 +969,7 @@ public class ProxiCraft : IModApi
 
             if (shouldBroadcast)
             {
-                FlightRecorder.Record("NETWORK", $"Broadcasting container {(unlock ? "unlock" : "lock")} at {blockPos}");
+                // Only log in debug mode - this fires frequently and causes disk I/O
                 LogDebug($"[Network] Broadcasting container {(unlock ? "unlock" : "lock")} at {blockPos}");
 
                 // CRASH PREVENTION: Wrap SendPackage in separate try-catch
@@ -1202,6 +1202,7 @@ public class ProxiCraft : IModApi
             if (!IsGameReady())
                 return;
 
+            PerformanceProfiler.StartTimer(PerformanceProfiler.OP_RECIPE_LIST_BUILD);
             try
             {
                 // Add container items to the list BEFORE recipe calculations
@@ -1218,6 +1219,10 @@ public class ProxiCraft : IModApi
             catch (Exception ex)
             {
                 LogWarning($"Error in BuildRecipeInfosList_Prefix: {ex.Message}");
+            }
+            finally
+            {
+                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_RECIPE_LIST_BUILD);
             }
         }
     }
@@ -3817,6 +3822,7 @@ public class ProxiCraft : IModApi
             if (!IsGameReady())
                 return;
 
+            PerformanceProfiler.StartTimer(PerformanceProfiler.OP_HUD_AMMO_UPDATE);
             try
             {
                 // Cache reflection lookups (one-time per session)
@@ -3847,13 +3853,17 @@ public class ProxiCraft : IModApi
 
                 if (_activeAmmoField == null || _ammoCountField == null)
                 {
+                    PerformanceProfiler.StopTimer(PerformanceProfiler.OP_HUD_AMMO_UPDATE);
                     return;
                 }
 
                 // Get the active ammo item type
                 var activeAmmo = _activeAmmoField.GetValue(__instance) as ItemValue;
                 if (activeAmmo == null || activeAmmo.type == 0)
+                {
+                    PerformanceProfiler.StopTimer(PerformanceProfiler.OP_HUD_AMMO_UPDATE);
                     return;
+                }
 
                 // Get the current ammo count (from vanilla calculation)
                 int currentCount = (int)_ammoCountField.GetValue(__instance);
@@ -3871,6 +3881,10 @@ public class ProxiCraft : IModApi
             catch (Exception ex)
             {
                 LogDebug($"HUD ammo patch error: {ex.Message}");
+            }
+            finally
+            {
+                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_HUD_AMMO_UPDATE);
             }
         }
     }

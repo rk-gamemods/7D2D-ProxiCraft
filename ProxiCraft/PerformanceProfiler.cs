@@ -218,6 +218,13 @@ public static class PerformanceProfiler
     public const string OP_PREWARM_CACHE = "PreWarmCache";
     public const string OP_SCAN_ENTITIES = "ScanEntities";
     public const string OP_SCAN_TILE_ENTITIES = "ScanTileEntities";
+    
+    // UI/Network operations (frequent - potential bottlenecks)
+    public const string OP_HUD_AMMO_UPDATE = "HudAmmoUpdate";
+    public const string OP_RECIPE_LIST_BUILD = "RecipeListBuild";
+    public const string OP_RECIPE_CRAFT_COUNT = "RecipeCraftCount";
+    public const string OP_NETWORK_BROADCAST = "NetworkBroadcast";
+    public const string OP_FILE_LOG = "FileLog";
 
     /// <summary>
     /// Starts timing an operation. Call StopTimer with same name to record.

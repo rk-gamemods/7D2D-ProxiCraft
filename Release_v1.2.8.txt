@@ -9,7 +9,7 @@ Multiplayer Stability Improvements
 [*]Added thread-safe counters for client verification (was using non-atomic operations)
 [*]Added defensive snapshots when iterating container locks during disconnect
 [*]Player name now falls back to handshake packet when entity lookup fails (fixes "Player Unknown" in logs)
-[*]Added crash diagnostics to pc_debug.log
+[*]Added crash diagnostics to pc_debug.log (This will be found in the mod folder not the game's log)
 [*]Log file now self-manages size
 [/list]
 
