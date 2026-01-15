@@ -1,0 +1,20 @@
+[size=4][b]ProxiCraft vX.Y.Z[/b][/size]
+
+[Summary - one line description of this release]
+
+[b]Changes:[/b]
+[list]
+[*]Change 1
+[*]Change 2
+[/list]
+
+[b]Installation:[/b]
+[list=1]
+[*]Download ProxiCraft-X.Y.Z.zip
+[*]Extract to your Mods folder → 7DaysToDie/Mods/ProxiCraft/
+[*]Launch game with [b]EAC disabled[/b] (required for all mods)
+[/list]
+
+[b]Multiplayer:[/b] All players need the same version installed.
+
+[b]Bug Reports:[/b] Comment on this mod page with pc_debug.log from your ProxiCraft folder.

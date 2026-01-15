@@ -91,30 +91,34 @@ Update **6 files** with the new version:
 
 ### Step 3: Create Release Notes
 
-Create file `Release_vX.Y.Z.txt` (BBCode format for Nexus):
+Copy `RELEASE_TEMPLATE.txt` to `Release_vX.Y.Z.txt` and fill in:
+- Replace `X.Y.Z` with version number
+- Add summary line
+- List changes
+
+**Template location:** `RELEASE_TEMPLATE.txt` (BBCode format for Nexus)
+
 ```
 [size=4][b]ProxiCraft vX.Y.Z[/b][/size]
 
-[b]Summary[/b]
-One-sentence summary of what changed.
+[Summary - one line description of this release]
 
-[b]Changes[/b]
+[b]Changes:[/b]
 [list]
 [*]Change 1
 [*]Change 2
 [/list]
 
-[b]Installation[/b]
+[b]Installation:[/b]
 [list=1]
 [*]Download ProxiCraft-X.Y.Z.zip
-[*]Extract and copy ProxiCraft folder to 7 Days To Die/Mods/
-[*]Launch game with EAC disabled
+[*]Extract to your Mods folder → 7DaysToDie/Mods/ProxiCraft/
+[*]Launch game with [b]EAC disabled[/b] (required for all mods)
 [/list]
 
-[b]Multiplayer:[/b] Install on server AND all clients (same version)
+[b]Multiplayer:[/b] All players need the same version installed.
 
-[b]Reporting Issues[/b]
-Found a bug? [url=https://github.com/rk-gamemods/7D2D-ProxiCraft/issues]Open an issue on GitHub[/url]
+[b]Bug Reports:[/b] Comment on this mod page with pc_debug.log from your ProxiCraft folder.
 ```
 
 ### Step 4: Build

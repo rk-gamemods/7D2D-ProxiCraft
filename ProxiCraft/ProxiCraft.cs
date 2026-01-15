@@ -56,7 +56,7 @@ public class ProxiCraft : IModApi
 {
     // Mod metadata
     public const string MOD_NAME = "ProxiCraft";
-    public const string MOD_VERSION = "1.2.8";
+    public const string MOD_VERSION = "1.2.9";
     
     // Static references
     private static ProxiCraft _instance;
@@ -865,6 +865,10 @@ public class ProxiCraft : IModApi
     /// <summary>
     /// Syncs container lock state in multiplayer (when someone opens a container).
     /// If connection is temporarily unavailable, logs and schedules a retry.
+    ///
+    /// SAFETY (v1.2.9): Added IsModAllowed() check to prevent broadcasts during client verification.
+    /// Evidence: IsGameReady() uses same pattern; this was the only network patch missing it.
+    /// Bug report: "Clients cannot open containers, server crashes when other players open anything"
     /// </summary>
     [HarmonyPatch(typeof(GameManager), nameof(GameManager.TELockServer))]
     [HarmonyPriority(Priority.Low)]
@@ -874,6 +878,13 @@ public class ProxiCraft : IModApi
         {
             if (!Config?.modEnabled == true)
                 return;
+            // SAFETY (v1.2.9): Skip broadcasts while clients are being verified
+            // Matches pattern in IsGameReady() - was missing here
+            if (!MultiplayerModTracker.IsModAllowed())
+            {
+                LogSafetySkip("TELockServer");
+                return;
+            }
 
             try
             {
@@ -901,6 +912,9 @@ public class ProxiCraft : IModApi
     /// <summary>
     /// Syncs container unlock state in multiplayer (when someone closes a container).
     /// If connection is temporarily unavailable, logs and schedules a retry.
+    ///
+    /// SAFETY (v1.2.9): Added IsModAllowed() check to prevent broadcasts during client verification.
+    /// Evidence: Same reasoning as TELockServer - unlock is just as risky as lock.
     /// </summary>
     [HarmonyPatch(typeof(GameManager), nameof(GameManager.TEUnlockServer))]
     [HarmonyPriority(Priority.Low)]
@@ -910,6 +924,12 @@ public class ProxiCraft : IModApi
         {
             if (!Config?.modEnabled == true)
                 return;
+            // SAFETY (v1.2.9): Skip broadcasts while clients are being verified
+            if (!MultiplayerModTracker.IsModAllowed())
+            {
+                LogSafetySkip("TEUnlockServer");
+                return;
+            }
 
             try
             {
@@ -963,9 +983,12 @@ public class ProxiCraft : IModApi
 
             // For lock: check if it IS in lockedTileEntities (just got locked)
             // For unlock: check if it's NOT in lockedTileEntities (just got unlocked)
-            bool shouldBroadcast = unlock
-                ? !gm.lockedTileEntities.ContainsKey((ITileEntity)(object)tileEntity)
-                : gm.lockedTileEntities.ContainsKey((ITileEntity)(object)tileEntity);
+            // CRASH PREVENTION: Defensive try-catch for dictionary access (can mutate during lookup)
+            bool isLocked;
+            try { isLocked = gm.lockedTileEntities.ContainsKey((ITileEntity)(object)tileEntity); }
+            catch { isLocked = false; }
+
+            bool shouldBroadcast = unlock ? !isLocked : isLocked;
 
             if (shouldBroadcast)
             {
@@ -1004,6 +1027,18 @@ public class ProxiCraft : IModApi
     // Track broadcast failures for diagnostics
     private static int _lockBroadcastFailCount = 0;
 
+    // Throttled safety skip logging (max once per 10 seconds)
+    private static DateTime _lastSafetySkipLog = DateTime.MinValue;
+    private static void LogSafetySkip(string source)
+    {
+        if ((DateTime.Now - _lastSafetySkipLog).TotalSeconds >= 10)
+        {
+            _lastSafetySkipLog = DateTime.Now;
+            var reason = MultiplayerModTracker.GetLockReason() ?? "unknown";
+            Log($"[MP-Safety] {source} skipped: {reason}");
+        }
+    }
+
     /// <summary>
     /// Retry broadcasting lock state after a brief delay.
     /// Handles temporary connection hiccups - if connection doesn't recover, gives up gracefully.
@@ -1036,8 +1071,13 @@ public class ProxiCraft : IModApi
                 var tileEntity = lootEntityId != -1 
                     ? gm.m_World.GetTileEntity(lootEntityId) 
                     : gm.m_World.GetTileEntity(blockPos);
-                    
-                if (tileEntity == null || !gm.lockedTileEntities.ContainsKey((ITileEntity)(object)tileEntity))
+
+                // CRASH PREVENTION: Defensive try-catch for dictionary access (can mutate during lookup)
+                bool stillLocked;
+                try { stillLocked = tileEntity != null && gm.lockedTileEntities.ContainsKey((ITileEntity)(object)tileEntity); }
+                catch { stillLocked = false; }
+
+                if (!stillLocked)
                 {
                     LogDebug($"[Network] Lock retry cancelled: container at {blockPos} already unlocked");
                     yield break;

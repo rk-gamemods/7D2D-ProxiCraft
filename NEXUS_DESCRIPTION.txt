@@ -356,6 +356,15 @@ Use only ONE mod of this type.
 
 [size=4][b]Changelog[/b][/size]
 
+[b]v1.2.9 - Multiplayer Safety Improvements[/b]
+Addresses reported issue: "Clients cannot open containers, server crashes when other players open anything"
+[list]
+[*]Added missing IsModAllowed() safety check to container lock/unlock broadcasts
+[*]Added defensive dictionary access to prevent potential crashes from concurrent modification
+[*]Added throttled diagnostic logging when safety system blocks broadcasts
+[/list]
+Please report back if you were experiencing multiplayer container issues!
+
 [b]v1.2.8 - Multiplayer Stability Improvements[/b]
 Investigating reported crash: "Host crashes when client opens containers"
 [list]
