@@ -4,7 +4,7 @@ A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs usin
 
 **[Nexus Mods](https://www.nexusmods.com/7daystodie/mods/9269)** • **[GitHub](https://github.com/rk-gamemods/7D2D-ProxiCraft)**
 
-## ⬇️ [Download ProxiCraft-1.2.9.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.9.zip)
+## ⬇️ [Download ProxiCraft-1.2.10.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.10.zip)
 
 ---
 
@@ -439,6 +439,12 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 ---
 
 ## Changelog
+
+### v1.2.10 - Full Magazine Reload Fix
+
+**Fixed:**
+- Fixed bug where guns could be reloaded even when magazine was full when using ammo from containers
+- Vanilla behavior restored: reload is now blocked when magazine is already at capacity
 
 ### v1.2.9 - Multiplayer Safety Improvements
 

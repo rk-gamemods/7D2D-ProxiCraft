@@ -1,0 +1,20 @@
+[size=4][b]ProxiCraft v1.2.10[/b][/size]
+
+Bug fix: Guns can no longer be reloaded when magazine is already full (when using ammo from containers).
+
+[b]Changes:[/b]
+[list]
+[*]Fixed bug where guns could be reloaded even when magazine was full when using ammo from containers
+[*]Vanilla behavior restored: reload is now blocked when magazine is already at capacity
+[/list]
+
+[b]Installation:[/b]
+[list=1]
+[*]Download ProxiCraft-1.2.10.zip
+[*]Extract to your Mods folder → 7DaysToDie/Mods/ProxiCraft/
+[*]Launch game with [b]EAC disabled[/b] (required for all mods)
+[/list]
+
+[b]Multiplayer:[/b] All players need the same version installed.
+
+[b]Bug Reports:[/b] Comment on this mod page with pc_debug.log from your ProxiCraft folder.

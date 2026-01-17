@@ -14,7 +14,7 @@
     <!-- No debug symbols in release - users don't need .pdb files -->
     <DebugType>none</DebugType>
     <!-- Version for zip file naming -->
-    <ModVersion>1.2.9</ModVersion>
+    <ModVersion>1.2.10</ModVersion>
   </PropertyGroup>
 
   <PropertyGroup>

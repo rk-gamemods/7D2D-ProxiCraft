@@ -356,6 +356,12 @@ Use only ONE mod of this type.
 
 [size=4][b]Changelog[/b][/size]
 
+[b]v1.2.10 - Full Magazine Reload Fix[/b]
+[list]
+[*]Fixed bug where guns could be reloaded even when magazine was full when using ammo from containers
+[*]Vanilla behavior restored: reload is now blocked when magazine is already at capacity
+[/list]
+
 [b]v1.2.9 - Multiplayer Safety Improvements[/b]
 Addresses reported issue: "Clients cannot open containers, server crashes when other players open anything"
 [list]

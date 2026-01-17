@@ -56,7 +56,7 @@ public class ProxiCraft : IModApi
 {
     // Mod metadata
     public const string MOD_NAME = "ProxiCraft";
-    public const string MOD_VERSION = "1.2.9";
+    public const string MOD_VERSION = "1.2.10";
     
     // Static references
     private static ProxiCraft _instance;
@@ -1813,20 +1813,34 @@ public class ProxiCraft : IModApi
             // If vanilla already allows reload, no need to check containers
             if (__result)
                 return;
-            
+
             // If mod disabled or reload feature disabled, don't override
             if (!Config?.modEnabled == true || !Config?.enableForReload == true)
                 return;
-            
+
             // Safety check
             if (!IsGameReady())
                 return;
-            
+
             try
             {
                 // Get the ammo type for the current weapon
                 var holdingItemItemValue = _actionData.invData.holdingEntity.inventory.holdingItemItemValue;
                 var ammoItemValue = ItemClass.GetItem(__instance.MagazineItemNames[holdingItemItemValue.SelectedAmmoTypeIndex]);
+
+                // FIX: Check if magazine is already full (vanilla rejects reload when Meta >= MagazineSize)
+                // Vanilla allows reload when: (isJammed || currentAmmo < magazineSize)
+                // We must NOT override if magazine is full and gun is not jammed
+                int magazineSize = (int)EffectManager.GetValue(PassiveEffects.MagazineSize, holdingItemItemValue, __instance.BulletsPerMagazine, _actionData.invData.holdingEntity);
+                int currentAmmo = _actionData.invData.itemValue.Meta;
+                bool isJammed = __instance.isJammed(holdingItemItemValue);
+
+                if (currentAmmo >= magazineSize && !isJammed)
+                {
+                    // Magazine is full and gun is not jammed - no reason to reload
+                    LogDebug($"CanReload: Magazine full ({currentAmmo}/{magazineSize}), not jammed - blocking reload");
+                    return;
+                }
                 
                 // Check if we have ammo in nearby containers
                 int containerCount;
