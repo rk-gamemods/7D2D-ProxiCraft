@@ -73,47 +73,58 @@ internal class NetPackagePCLock : NetPackage
 
     public override void ProcessPackage(World _world, GameManager _callbacks)
     {
-        // Only process on clients, not on the server
-        if (ProxiCraft.Config?.modEnabled != true)
-            return;
-            
-        if (SingletonMonoBehaviour<ConnectionManager>.Instance.IsServer)
-            return;
+        PerformanceProfiler.StartTimer(PerformanceProfiler.OP_PACKET_RECEIVE);
+        try
+        {
+            // Record packet received for diagnostics
+            MultiplayerModTracker.RecordPacketReceived();
 
-        // Validate packet data
-        if (posX == int.MinValue)
-        {
-            ProxiCraft.LogDebug("[Network] Ignoring invalid lock packet");
-            return;
-        }
+            // Only process on clients, not on the server
+            if (ProxiCraft.Config?.modEnabled != true)
+                return;
 
-        var position = new Vector3i(posX, posY, posZ);
-        
-        // Calculate and log latency if timestamp is valid
-        if (timestampUtcTicks > 0)
-        {
-            var sentTime = new DateTime(timestampUtcTicks, DateTimeKind.Utc);
-            var latencyMs = (DateTime.UtcNow - sentTime).TotalMilliseconds;
+            if (SingletonMonoBehaviour<ConnectionManager>.Instance.IsServer)
+                return;
+
+            // Validate packet data
+            if (posX == int.MinValue)
+            {
+                ProxiCraft.LogDebug("[Network] Ignoring invalid lock packet");
+                return;
+            }
+
+            var position = new Vector3i(posX, posY, posZ);
             
-            // Log if latency is unusually high (>500ms)
-            if (latencyMs > 500)
+            // Calculate and log latency if timestamp is valid
+            if (timestampUtcTicks > 0)
             {
-                ProxiCraft.LogWarning($"[Network] High latency detected: Lock packet took {latencyMs:F0}ms (sent {sentTime:HH:mm:ss.fff} UTC)");
+                var sentTime = new DateTime(timestampUtcTicks, DateTimeKind.Utc);
+                var latencyMs = (DateTime.UtcNow - sentTime).TotalMilliseconds;
+                
+                // Log if latency is unusually high (>500ms)
+                if (latencyMs > 500)
+                {
+                    ProxiCraft.LogWarning($"[Network] High latency detected: Lock packet took {latencyMs:F0}ms (sent {sentTime:HH:mm:ss.fff} UTC)");
+                }
+                else if (ProxiCraft.Config?.isDebug == true)
+                {
+                    ProxiCraft.LogDebug($"[Network] Lock packet latency: {latencyMs:F0}ms");
+                }
             }
-            else if (ProxiCraft.Config?.isDebug == true)
+            
+            // Use ContainerManager's lock methods for last-write-wins ordering and expiration
+            if (!unlock)
             {
-                ProxiCraft.LogDebug($"[Network] Lock packet latency: {latencyMs:F0}ms");
+                ContainerManager.AddLock(position, timestampUtcTicks);
+            }
+            else
+            {
+                ContainerManager.RemoveLock(position, timestampUtcTicks);
             }
         }
-        
-        // Use ContainerManager's lock methods for last-write-wins ordering and expiration
-        if (!unlock)
+        finally
         {
-            ContainerManager.AddLock(position, timestampUtcTicks);
-        }
-        else
-        {
-            ContainerManager.RemoveLock(position, timestampUtcTicks);
+            PerformanceProfiler.StopTimer(PerformanceProfiler.OP_PACKET_RECEIVE);
         }
     }
 }

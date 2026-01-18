@@ -404,36 +404,68 @@ With 100+ storage locations, this could be 100-400ms per UI update = LAG SPIKE.
 
 ### Overview
 
-ProxiCraft includes a built-in performance profiler (`PerformanceProfiler.cs`) that tracks timing and cache statistics for key operations. Disabled by default to avoid any overhead.
+ProxiCraft v1.2.11 includes a comprehensive performance profiler (`PerformanceProfiler.cs`) with **microsecond precision** timing, frame-level tracking, and spike detection. Designed specifically to diagnose rubber-banding, hitches, and lag in both singleplayer and multiplayer. Disabled by default to avoid any overhead.
+
+### Key Features (v1.2.11)
+
+- **Microsecond Precision** - Uses `Stopwatch.GetTimestamp()` for high-resolution timing (not just milliseconds)
+- **Frame Timing** - Tracks frame-to-frame gaps to detect hitches/stalls via GameManager.Update patch
+- **Spike Detection** - Automatically logs operations exceeding 16ms (spike) or 50ms (SEVERE)
+- **Lock Contention Tracking** - Monitors thread lock wait times and contention frequency
+- **GC Pressure Monitoring** - Tracks Gen0/Gen1/Gen2 garbage collection events
+- **Circular Sample Buffers** - 10k all-time samples, 1k recent samples per operation
+- **Percentile Statistics** - P50, P95, P99 for identifying outliers
 
 ### Tracked Operations
 
-| Operation | Description |
-|-----------|-------------|
-| `RebuildItemCountCache` | Full storage scan to rebuild item cache |
-| `GetItemCount` | Individual item count queries |
-| `RefreshStorages` | Container discovery scan |
-| `CountVehicles` | Vehicle storage enumeration |
-| `CountDrones` | Drone storage enumeration |
-| `CountDewCollectors` | Dew collector scanning |
-| `CountWorkstations` | Workstation output scanning |
+| Category | Operations |
+|----------|------------|
+| **Core** | `RebuildItemCountCache`, `GetItemCount`, `RefreshStorages`, `GetStorageItems`, `RemoveItems` |
+| **Scanning** | `ScanEntities`, `ScanTileEntities`, `ChunkScan`, `IsInRange` |
+| **Counting** | `CountVehicles`, `CountDrones`, `CountDewCollectors`, `CountWorkstations`, `CountContainers` |
+| **Cleanup** | `CleanupStale`, `LockCleanup`, `PreWarmCache` |
+| **UI** | `HudAmmoUpdate`, `RecipeListBuild`, `RecipeCraftCount` |
+| **Network** | `NetworkBroadcast`, `PacketObserve`, `HandshakeProcess`, `PacketSend`, `PacketReceive` |
+| **Harmony Patches** | `Patch_TELock`, `Patch_TEUnlock`, `Patch_StartGame`, `Patch_SaveCleanup`, `Patch_HasItems`, `Patch_BuildRecipes`, `Patch_HudUpdate` |
+| **Frame** | `FrameTotal` - per-frame timing |
 
-### Metrics Collected
+### Spike Detection Thresholds
 
-- **Call Count** - How many times operation was called
-- **Total Time** - Cumulative milliseconds
-- **Avg Time** - Average ms per call
-- **Min/Max Time** - Range of execution times
-- **Cache Hit Rate** - Percentage of queries served from cache
+| Threshold | Classification | Meaning |
+|-----------|---------------|---------|
+| ≥ 16ms | **Spike** | Potential frame hitch (60 FPS = 16.67ms budget) |
+| ≥ 50ms | **SEVERE** | Definite lag/stutter, multiple frames lost |
+
+### Report Sections
+
+The `pc perf report` output includes:
+
+1. **FRAME TIMING** - Frame count, average/max frame times, >16ms hitches, >50ms severe hitches
+2. **LOCK CONTENTION** - Total lock acquisitions, contention events, wait time
+3. **GC PRESSURE** - Gen0/Gen1/Gen2 collection counts since profiling started
+4. **OPERATION TIMING** - Per-operation stats with microsecond precision, percentiles
+5. **SPIKE LOG** - Last 50 spike events with timestamps, frame numbers, and durations
+
+### Rubber-Banding Detection
+
+If you experience rubber-banding/desync in singleplayer:
+
+1. Enable profiling: `pc perf on`
+2. Play until rubber-banding occurs
+3. Generate report: `pc perf report`
+4. Check **FRAME TIMING** section for hitches count
+5. Check **SPIKE LOG** for which operations caused spikes
+
+If spikes appear in ProxiCraft operations, report the log. If no ProxiCraft spikes but frame hitches occur, the issue is in another mod or the base game.
 
 ### Console Commands
 
 ```
 pc perf          - Brief status (is profiler on, basic stats)
-pc perf on       - Enable profiling (resets data)
-pc perf off      - Disable profiling
-pc perf reset    - Clear collected data
-pc perf report   - Detailed timing report
+pc perf on       - Enable profiling (resets all data)
+pc perf off      - Disable profiling  
+pc perf reset    - Clear collected data without disabling
+pc perf report   - Detailed multi-section timing report
 ```
 
 ### Performance Optimizations Applied
@@ -790,3 +822,96 @@ for (int i = 0; i < slots.Length && remaining > 0; i++)
 }
 ```
 Currently not implemented as the try-catch provides sufficient protection.
+
+---
+
+## Multiplayer Memory Management (v1.2.11)
+
+### Lock Dictionary Cleanup
+
+Container lock dictionaries (`_containerLocks` in `ContainerLockManager`) track which containers are locked by which players. Without cleanup, these dictionaries grow unbounded during long multiplayer sessions.
+
+**Problem:**
+- Lock entries created for each container interaction
+- Entries expire but were never removed
+- Dictionary grows indefinitely over 8+ hour sessions
+
+**Solution (v1.2.11):**
+```csharp
+// Periodic cleanup runs every 15 seconds
+private const double CLEANUP_INTERVAL_SECONDS = 15.0;
+
+private static void CleanupExpiredLocks()
+{
+    var now = Time.time;
+    var expired = _containerLocks.Where(kvp => kvp.Value.ExpireTime < now)
+                                  .Select(kvp => kvp.Key)
+                                  .ToList();
+    foreach (var key in expired)
+        _containerLocks.TryRemove(key, out _);
+}
+```
+
+**Diagnostics:** `pc perf report` shows:
+- Current lock dictionary size
+- Peak dictionary size
+- Number of entries cleaned up
+
+### Coroutine Race Condition
+
+Handshake retry coroutines could start multiple times if the initial handshake failed quickly.
+
+**Problem:**
+- `StartCoroutine()` called without checking if already running
+- Multiple concurrent coroutines sending redundant packets
+- Potential for coroutine accumulation
+
+**Solution (v1.2.11):**
+```csharp
+private static volatile int _handshakeCoroutineActive = 0;
+
+IEnumerator RetryHandshake()
+{
+    // Atomic check-and-set
+    if (Interlocked.CompareExchange(ref _handshakeCoroutineActive, 1, 0) != 0)
+        yield break;  // Already running
+    
+    try
+    {
+        // ... retry logic ...
+    }
+    finally
+    {
+        Interlocked.Exchange(ref _handshakeCoroutineActive, 0);
+    }
+}
+```
+
+**Diagnostics:** `pc perf report` shows:
+- Active coroutine count
+- Peak coroutine count
+- Total coroutines started
+
+### NetworkPacketObserver Optimization
+
+The packet observer examined ALL packets in multiplayer, which could be thousands per frame.
+
+**Problem:**
+- `ProcessPackages()` called per network frame
+- Observer examined every packet looking for ProxiCraft packets
+- O(n) scanning on every frame
+
+**Solution (v1.2.11):**
+```csharp
+// Only examine first 10 packets - ProxiCraft packets appear early in the queue
+private const int MAX_PACKETS_TO_OBSERVE = 10;
+
+foreach (var packet in packets)
+{
+    if (++count > MAX_PACKETS_TO_OBSERVE) break;
+    // ... observation logic ...
+}
+```
+
+**Note:** In singleplayer, the observer is NOT active because `ConnectionManager.ProcessPackages` is never called when `IsServer=true` and `ClientCount=0`.
+

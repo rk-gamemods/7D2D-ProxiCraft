@@ -49,7 +49,14 @@ public static class MultiplayerModTracker
     private static bool _serverResponseReceived;
     private static bool _serverWarningShown;
     private static int _handshakeRetryCount;           // Number of retry attempts made
-    private static bool _handshakeRetryActive;         // Whether retry coroutine is running
+    private static int _handshakeRetryActive;          // 0=inactive, 1=active (use Interlocked for thread safety)
+
+    // Diagnostics counters for performance profiler
+    private static int _totalCoroutinesStarted;        // Total coroutines started this session
+    private static int _activeCoroutineCount;          // Currently active coroutines
+    private static int _peakCoroutineCount;            // Peak concurrent coroutines
+    private static int _totalPacketsSent;              // Total network packets sent
+    private static int _totalPacketsReceived;          // Total network packets received
     
     // Configurable timeout - read from config, with fallback
     private static float GetHandshakeTimeout() => 
@@ -560,6 +567,7 @@ public static class MultiplayerModTracker
             
             var packet = NetPackageManager.GetPackage<NetPackagePCConfigSync>().Setup(config);
             clientInfo.SendPackage((NetPackage)(object)packet);
+            RecordPacketSent();
             
             ProxiCraft.LogDebug($"[Multiplayer] Sent config sync to client '{clientInfo.playerName}'");
         }
@@ -578,6 +586,7 @@ public static class MultiplayerModTracker
     /// </summary>
     public static void OnHandshakeReceived(int entityId, string playerName, string modName, string modVersion, List<string> detectedConflicts)
     {
+        PerformanceProfiler.StartTimer(PerformanceProfiler.OP_HANDSHAKE_PROCESS);
         try
         {
             // Check if this is a duplicate handshake (from retry mechanism)
@@ -628,6 +637,10 @@ public static class MultiplayerModTracker
         {
             ProxiCraft.LogWarning($"[Multiplayer] Error in OnHandshakeReceived: {ex.Message}");
         }
+        finally
+        {
+            PerformanceProfiler.StopTimer(PerformanceProfiler.OP_HANDSHAKE_PROCESS);
+        }
     }
 
     /// <summary>
@@ -650,6 +663,7 @@ public static class MultiplayerModTracker
 
             // Send directly to the client who sent us the handshake
             clientInfo.SendPackage((NetPackage)(object)packet);
+            RecordPacketSent();
             
             ProxiCraft.LogDebug($"[Multiplayer] Sent handshake response to '{clientInfo.playerName}'");
         }
@@ -758,7 +772,7 @@ public static class MultiplayerModTracker
             _serverResponseReceived = false;
             _serverWarningShown = false;
             _handshakeRetryCount = 0;
-            _handshakeRetryActive = false;
+            Interlocked.Exchange(ref _handshakeRetryActive, 0);
             _isMultiplayerSession = false;
             _multiplayerUnlocked = false;
             _isHosting = false;
@@ -767,12 +781,53 @@ public static class MultiplayerModTracker
             _immediatelyLockMod = false;
             _unverifiedClientCount = 0;
             _configSyncReceived = false;
+
+            // Reset diagnostic counters
+            Interlocked.Exchange(ref _totalCoroutinesStarted, 0);
+            Interlocked.Exchange(ref _activeCoroutineCount, 0);
+            Interlocked.Exchange(ref _peakCoroutineCount, 0);
+            Interlocked.Exchange(ref _totalPacketsSent, 0);
+            Interlocked.Exchange(ref _totalPacketsReceived, 0);
         }
         catch
         {
             // Silent fail
         }
     }
+
+    // ====================================================================================
+    // DIAGNOSTICS - Performance profiler integration
+    // ====================================================================================
+
+    /// <summary>Gets total coroutines started this session.</summary>
+    public static int TotalCoroutinesStarted => _totalCoroutinesStarted;
+
+    /// <summary>Gets currently active coroutines.</summary>
+    public static int ActiveCoroutineCount => _activeCoroutineCount;
+
+    /// <summary>Gets peak concurrent coroutines this session.</summary>
+    public static int PeakCoroutineCount => _peakCoroutineCount;
+
+    /// <summary>Gets total network packets sent this session.</summary>
+    public static int TotalPacketsSent => _totalPacketsSent;
+
+    /// <summary>Gets total network packets received this session.</summary>
+    public static int TotalPacketsReceived => _totalPacketsReceived;
+
+    /// <summary>Gets number of pending (unverified) clients.</summary>
+    public static int PendingClientCount => _pendingClients.Count;
+
+    /// <summary>Gets number of verified clients.</summary>
+    public static int VerifiedClientCount => _verifiedClients.Count;
+
+    /// <summary>Gets number of tracked player mods.</summary>
+    public static int TrackedPlayerModCount => _playerMods.Count;
+
+    /// <summary>Increments packet sent counter (called from network code).</summary>
+    public static void RecordPacketSent() => Interlocked.Increment(ref _totalPacketsSent);
+
+    /// <summary>Increments packet received counter (called from network code).</summary>
+    public static void RecordPacketReceived() => Interlocked.Increment(ref _totalPacketsReceived);
 
     /// <summary>
     /// Called when entering a multiplayer session. Enables the safety lock.
@@ -888,12 +943,23 @@ public static class MultiplayerModTracker
             _handshakeRetryCount = 0;
             
             ProxiCraft.Log("[Multiplayer] Handshake sent to server, waiting for response...");
-            
-            // Start retry coroutine if not already running
-            if (!_handshakeRetryActive)
+
+            // Start retry coroutine if not already running (thread-safe check-and-set)
+            // FIX: Use Interlocked.CompareExchange to prevent race condition
+            if (Interlocked.CompareExchange(ref _handshakeRetryActive, 1, 0) == 0)
             {
-                _handshakeRetryActive = true;
+                // We successfully set the flag from 0 to 1 - start the coroutine
+                Interlocked.Increment(ref _totalCoroutinesStarted);
+                Interlocked.Increment(ref _activeCoroutineCount);
+                int current = _activeCoroutineCount;
+                if (current > _peakCoroutineCount)
+                    Interlocked.Exchange(ref _peakCoroutineCount, current);
+
                 ThreadManager.StartCoroutine(HandshakeRetryCoroutine());
+            }
+            else
+            {
+                ProxiCraft.LogDebug("[Multiplayer] Handshake retry coroutine already running");
             }
         }
         catch (Exception ex)
@@ -950,6 +1016,7 @@ public static class MultiplayerModTracker
 
                     SingletonMonoBehaviour<ConnectionManager>.Instance.SendToServer(
                         (NetPackage)(object)packet, false);
+                    RecordPacketSent();
 
                     ProxiCraft.Log($"[Multiplayer] Handshake retry #{_handshakeRetryCount} sent (no response yet, {timeoutSeconds - (DateTime.Now - _handshakeSentTime.Value).TotalSeconds:F0}s until timeout)");
                 }
@@ -959,8 +1026,10 @@ public static class MultiplayerModTracker
                 ProxiCraft.LogDebug($"[Multiplayer] Handshake retry failed: {ex.Message}");
             }
         }
-        
-        _handshakeRetryActive = false;
+
+        // Mark coroutine as finished
+        Interlocked.Exchange(ref _handshakeRetryActive, 0);
+        Interlocked.Decrement(ref _activeCoroutineCount);
     }
 
     /// <summary>
@@ -1243,6 +1312,7 @@ internal class NetPackagePCHandshake : NetPackage
                 false,           // Don't send to server
                 senderEntityId,  // Exclude sender
                 -1, -1, null, 192, false);
+            MultiplayerModTracker.RecordPacketSent();
         }
         catch (Exception ex)
         {

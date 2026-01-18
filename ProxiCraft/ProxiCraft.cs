@@ -56,7 +56,7 @@ public class ProxiCraft : IModApi
 {
     // Mod metadata
     public const string MOD_NAME = "ProxiCraft";
-    public const string MOD_VERSION = "1.2.10";
+    public const string MOD_VERSION = "1.2.11";
     
     // Static references
     private static ProxiCraft _instance;
@@ -251,6 +251,7 @@ public class ProxiCraft : IModApi
                 // Broadcast to all connected clients
                 SingletonMonoBehaviour<ConnectionManager>.Instance.SendPackage(
                     (NetPackage)(object)packet, false, -1, -1, -1, null, 192, false);
+                MultiplayerModTracker.RecordPacketSent();
             }
             yield break;
         }
@@ -279,6 +280,7 @@ public class ProxiCraft : IModApi
             // Send to server (and server will broadcast to other clients)
             SingletonMonoBehaviour<ConnectionManager>.Instance.SendToServer(
                 (NetPackage)(object)packet, false);
+            MultiplayerModTracker.RecordPacketSent();
 
             // Start retry mechanism - will send handshake every 1 second until response or timeout
             MultiplayerModTracker.OnHandshakeSent();
@@ -863,6 +865,21 @@ public class ProxiCraft : IModApi
     }
 
     /// <summary>
+    /// Frame timing tracking for performance profiler.
+    /// Tracks frame-to-frame timing to detect hitches/rubber-banding.
+    /// </summary>
+    [HarmonyPatch(typeof(GameManager), "Update")]
+    [HarmonyPriority(Priority.First)]  // Run FIRST to capture full frame time
+    public static class GameManager_Update_FrameTimingPatch
+    {
+        public static void Prefix()
+        {
+            // Track frame timing for rubber-band detection
+            PerformanceProfiler.OnFrameStart();
+        }
+    }
+
+    /// <summary>
     /// Syncs container lock state in multiplayer (when someone opens a container).
     /// If connection is temporarily unavailable, logs and schedules a retry.
     ///
@@ -876,18 +893,19 @@ public class ProxiCraft : IModApi
     {
         public static void Postfix(GameManager __instance, int _clrIdx, Vector3i _blockPos, int _lootEntityId)
         {
-            if (!Config?.modEnabled == true)
-                return;
-            // SAFETY (v1.2.9): Skip broadcasts while clients are being verified
-            // Matches pattern in IsGameReady() - was missing here
-            if (!MultiplayerModTracker.IsModAllowed())
-            {
-                LogSafetySkip("TELockServer");
-                return;
-            }
-
+            PerformanceProfiler.StartTimer(PerformanceProfiler.OP_PATCH_TELOCK);
             try
             {
+                if (!Config?.modEnabled == true)
+                    return;
+                // SAFETY (v1.2.9): Skip broadcasts while clients are being verified
+                // Matches pattern in IsGameReady() - was missing here
+                if (!MultiplayerModTracker.IsModAllowed())
+                {
+                    LogSafetySkip("TELockServer");
+                    return;
+                }
+
                 var connManager = SingletonMonoBehaviour<ConnectionManager>.Instance;
                 if (connManager == null || !connManager.IsServer)
                     return;
@@ -906,6 +924,10 @@ public class ProxiCraft : IModApi
             {
                 LogWarning($"[Network] Error in TELockServer patch: {ex.Message}");
             }
+            finally
+            {
+                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_PATCH_TELOCK);
+            }
         }
     }
 
@@ -922,17 +944,18 @@ public class ProxiCraft : IModApi
     {
         public static void Postfix(GameManager __instance, int _clrIdx, Vector3i _blockPos, int _lootEntityId)
         {
-            if (!Config?.modEnabled == true)
-                return;
-            // SAFETY (v1.2.9): Skip broadcasts while clients are being verified
-            if (!MultiplayerModTracker.IsModAllowed())
-            {
-                LogSafetySkip("TEUnlockServer");
-                return;
-            }
-
+            PerformanceProfiler.StartTimer(PerformanceProfiler.OP_PATCH_TEUNLOCK);
             try
             {
+                if (!Config?.modEnabled == true)
+                    return;
+                // SAFETY (v1.2.9): Skip broadcasts while clients are being verified
+                if (!MultiplayerModTracker.IsModAllowed())
+                {
+                    LogSafetySkip("TEUnlockServer");
+                    return;
+                }
+
                 var connManager = SingletonMonoBehaviour<ConnectionManager>.Instance;
                 if (connManager == null || !connManager.IsServer)
                     return;
@@ -951,6 +974,10 @@ public class ProxiCraft : IModApi
             {
                 LogWarning($"[Network] Error in TEUnlockServer patch: {ex.Message}");
             }
+            finally
+            {
+                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_PATCH_TEUNLOCK);
+            }
         }
     }
 
@@ -964,6 +991,7 @@ public class ProxiCraft : IModApi
     /// </summary>
     private static void BroadcastLockState(GameManager gm, ConnectionManager connManager, Vector3i blockPos, int lootEntityId, bool unlock)
     {
+        PerformanceProfiler.StartTimer(PerformanceProfiler.OP_NETWORK_BROADCAST);
         try
         {
             // CRASH PREVENTION: Skip broadcasting during early connection window
@@ -1001,6 +1029,7 @@ public class ProxiCraft : IModApi
                 {
                     var packet = NetPackageManager.GetPackage<NetPackagePCLock>().Setup(blockPos, unlock);
                     connManager.SendPackage((NetPackage)(object)packet, true, -1, -1, -1, null, 192, false);
+                    MultiplayerModTracker.RecordPacketSent();
                 }
                 catch (Exception sendEx)
                 {
@@ -1021,6 +1050,10 @@ public class ProxiCraft : IModApi
         {
             FlightRecorder.Record("NETWORK", $"BroadcastLockState ERROR: {ex.Message}");
             LogWarning($"[Network] Error in BroadcastLockState: {ex.Message}");
+        }
+        finally
+        {
+            PerformanceProfiler.StopTimer(PerformanceProfiler.OP_NETWORK_BROADCAST);
         }
     }
 
@@ -1161,6 +1194,7 @@ public class ProxiCraft : IModApi
                 Log($"[Network] Broadcasting orphan unlock for container at {__state} (player disconnected)");
                 var packet = NetPackageManager.GetPackage<NetPackagePCLock>().Setup(__state, true);
                 connManager.SendPackage((NetPackage)(object)packet, true, -1, -1, -1, null, 192, false);
+                MultiplayerModTracker.RecordPacketSent();
             }
             catch (Exception ex)
             {

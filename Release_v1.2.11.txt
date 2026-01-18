@@ -1,0 +1,45 @@
+[size=4][b]ProxiCraft v1.2.11[/b][/size]
+
+Multiplayer stability and comprehensive diagnostics update. This release fixes memory leaks and adds a completely overhauled performance profiler with microsecond precision for diagnosing lag and rubber-banding.
+
+[b]Bug Fixes:[/b]
+[list]
+[*][b]Memory Leak Fix:[/b] Lock dictionaries now have periodic cleanup (every 15 seconds) to remove expired entries, preventing unbounded growth during long multiplayer sessions
+[*][b]Coroutine Race Condition Fix:[/b] Handshake retry coroutine now uses proper atomic operations to prevent multiple coroutines from starting simultaneously
+[*][b]NetworkPacketObserver Optimization:[/b] Diagnostic packet type detection now only examines first 10 packets per batch (total packet count still tracked accurately). This reduces iteration cost while still detecting new packet types within a few frames.
+[/list]
+
+[b]New Comprehensive Performance Profiler:[/b]
+Complete rewrite with microsecond precision and rubber-banding detection:
+[list]
+[*][b]Microsecond Timing:[/b] Uses high-resolution Stopwatch for sub-millisecond accuracy
+[*][b]Frame Timing Tracking:[/b] Detects hitches and frame gaps via GameManager.Update monitoring
+[*][b]Spike Detection:[/b] Automatically logs operations over 16ms (spike) or 50ms (SEVERE)
+[*][b]Lock Contention Tracking:[/b] Monitors thread lock wait times
+[*][b]GC Pressure Monitoring:[/b] Tracks Gen0/Gen1/Gen2 garbage collection events
+[*][b]Spike Log:[/b] Records last 50 spikes with timestamps and frame numbers
+[*][b]Percentile Stats:[/b] P50/P95/P99 for identifying outliers
+[*][b]Comprehensive Patch Timing:[/b] All Harmony patches instrumented
+[/list]
+
+[b]How to use diagnostics:[/b]
+Open console (F1) and run:
+[code]
+pc perf on      // Enable profiling (resets data)
+[/code]
+Play normally until you experience lag/rubber-banding, then:
+[code]
+pc perf report  // Detailed multi-section timing report
+[/code]
+The report includes: Frame Timing, Lock Contention, GC Pressure, Operation Timing with percentiles, and a Spike Log.
+
+[b]Installation:[/b]
+[list=1]
+[*]Download ProxiCraft-1.2.11.zip
+[*]Extract to your Mods folder → 7DaysToDie/Mods/ProxiCraft/
+[*]Launch game with [b]EAC disabled[/b] (required for all mods)
+[/list]
+
+[b]Multiplayer:[/b] All players need the same version installed.
+
+[b]Bug Reports:[/b] If experiencing lag, run [font=courier]pc perf report[/font] and include the output in your bug report.

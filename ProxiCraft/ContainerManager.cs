@@ -125,7 +125,15 @@ public static class ContainerManager
     // Cleanup timing for unlimited range mode (remove destroyed containers)
     private static float _lastCleanupTime;
     private const float CLEANUP_INTERVAL = 10f; // Clean up stale refs every 10 seconds
-    
+
+    // Cleanup timing for expired locks (separate from container cleanup for MP)
+    private static float _lastLockCleanupTime;
+    private const float LOCK_CLEANUP_INTERVAL = 15f; // Clean up expired locks every 15 seconds
+
+    // Diagnostics counters for performance profiler
+    private static int _lockCleanupCount; // Total locks cleaned up this session
+    private static int _peakLockCount;    // High water mark for lock dictionary size
+
     // Flag to force cache refresh (set when containers change)
     private static bool _forceCacheRefresh = true;
     
@@ -355,6 +363,9 @@ public static class ContainerManager
         _lockPacketTimestamps.Clear();
         _lastScanTime = 0f;
         _lastScanPosition = Vector3.zero;
+        _lastLockCleanupTime = 0f;
+        _lockCleanupCount = 0;
+        _peakLockCount = 0;
         _forceCacheRefresh = true;
         _itemCountCacheValid = false;
         _lastItemCountFrame = -1;
@@ -366,6 +377,31 @@ public static class ContainerManager
         // Reset scan method decision to force re-evaluation on next scan
         _scanMethodCalculated = false;
     }
+
+    // ====================================================================================
+    // DIAGNOSTICS - Performance profiler integration
+    // ====================================================================================
+
+    /// <summary>Gets current number of locked container positions.</summary>
+    public static int LockedPositionCount => _lockedPositions.Count;
+
+    /// <summary>Gets current number of lock timestamps tracked.</summary>
+    public static int LockTimestampCount => _lockTimestamps.Count;
+
+    /// <summary>Gets current number of lock packet timestamps tracked.</summary>
+    public static int LockPacketTimestampCount => _lockPacketTimestamps.Count;
+
+    /// <summary>Gets total locks cleaned up this session.</summary>
+    public static int TotalLocksCleanedUp => _lockCleanupCount;
+
+    /// <summary>Gets peak lock count this session.</summary>
+    public static int PeakLockCount => _peakLockCount;
+
+    /// <summary>Gets current storage dictionary size.</summary>
+    public static int CurrentStorageCount => _currentStorageDict.Count;
+
+    /// <summary>Gets known storage dictionary size (includes out-of-range).</summary>
+    public static int KnownStorageCount => _knownStorageDict.Count;
 
     // ====================================================================================
     // CONTAINER LOCK MANAGEMENT - Multiplayer coordination
@@ -395,7 +431,13 @@ public static class ContainerManager
         _lockPacketTimestamps[position] = packetTimestamp;
         _lockTimestamps[position] = DateTime.UtcNow.Ticks;
         _lockedPositions.TryAdd(position, 0);
-        ProxiCraft.LogDebug($"[Network] Container locked at {position}");
+
+        // Track peak for diagnostics
+        int currentCount = _lockedPositions.Count;
+        if (currentCount > _peakLockCount)
+            _peakLockCount = currentCount;
+
+        ProxiCraft.LogDebug($"[Network] Container locked at {position} (total: {currentCount})");
     }
 
     /// <summary>
@@ -2041,6 +2083,14 @@ public static class ContainerManager
                 CleanupStaleContainers(world);
                 _lastCleanupTime = currentTime;
             }
+
+            // Periodically clean up expired locks (every ~15 seconds)
+            // FIX: Prevents lock dictionaries from growing unbounded in multiplayer
+            if (currentTime - _lastLockCleanupTime > LOCK_CLEANUP_INTERVAL)
+            {
+                CleanupExpiredLocks();
+                _lastLockCleanupTime = currentTime;
+            }
         }
         catch (Exception ex)
         {
@@ -2105,6 +2155,82 @@ public static class ContainerManager
             ProxiCraft.LogDebug($"Cleaned up {keysToRemove.Count} stale container refs");
         }
         PerformanceProfiler.StopTimer(PerformanceProfiler.OP_CLEANUP_STALE);
+    }
+
+    /// <summary>
+    /// Removes expired container locks from the tracking dictionaries.
+    /// FIX: Prevents memory leak from lock dictionaries growing unbounded in multiplayer.
+    /// Called periodically from RefreshStorages.
+    /// </summary>
+    private static void CleanupExpiredLocks()
+    {
+        PerformanceProfiler.StartTimer(PerformanceProfiler.OP_LOCK_CLEANUP);
+
+        try
+        {
+            var expirySeconds = ProxiCraft.Config?.containerLockExpirySeconds ?? 30f;
+            if (expirySeconds <= 0)
+            {
+                PerformanceProfiler.StopTimer(PerformanceProfiler.OP_LOCK_CLEANUP);
+                return; // Expiration disabled
+            }
+
+            var now = DateTime.UtcNow;
+            var keysToRemove = new List<Vector3i>();
+
+            // Check all lock timestamps for expiration
+            foreach (var kvp in _lockTimestamps)
+            {
+                var lockTime = new DateTime(kvp.Value, DateTimeKind.Utc);
+                var elapsed = (now - lockTime).TotalSeconds;
+
+                if (elapsed > expirySeconds)
+                {
+                    keysToRemove.Add(kvp.Key);
+                }
+            }
+
+            // Remove expired entries from all three dictionaries
+            foreach (var pos in keysToRemove)
+            {
+                _lockedPositions.TryRemove(pos, out _);
+                _lockTimestamps.TryRemove(pos, out _);
+                _lockPacketTimestamps.TryRemove(pos, out _);
+            }
+
+            if (keysToRemove.Count > 0)
+            {
+                _lockCleanupCount += keysToRemove.Count;
+                ProxiCraft.LogDebug($"[Network] Cleaned up {keysToRemove.Count} expired locks");
+            }
+
+            // Also clean orphaned entries in packet timestamps that don't have corresponding locks
+            // This handles race conditions where unlock packet arrived but timestamp remained
+            var orphanedPacketTimestamps = new List<Vector3i>();
+            foreach (var pos in _lockPacketTimestamps.Keys)
+            {
+                if (!_lockedPositions.ContainsKey(pos) && !_lockTimestamps.ContainsKey(pos))
+                {
+                    orphanedPacketTimestamps.Add(pos);
+                }
+            }
+
+            foreach (var pos in orphanedPacketTimestamps)
+            {
+                _lockPacketTimestamps.TryRemove(pos, out _);
+            }
+
+            if (orphanedPacketTimestamps.Count > 0)
+            {
+                ProxiCraft.LogDebug($"[Network] Cleaned up {orphanedPacketTimestamps.Count} orphaned packet timestamps");
+            }
+        }
+        catch (Exception ex)
+        {
+            ProxiCraft.LogWarning($"[Network] Error cleaning up locks: {ex.Message}");
+        }
+
+        PerformanceProfiler.StopTimer(PerformanceProfiler.OP_LOCK_CLEANUP);
     }
 
     // Reusable lists for entity scanning (avoid allocations)

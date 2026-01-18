@@ -56,23 +56,24 @@ The toolkit provides:
 
 Pre-generated knowledge files are available for quick reference without running tools:
 
-**Location:** `C:\Users\Admin\Documents\GIT\GameMods\7D2DMods\7D2D-DecompilerScript\knowledge\`
+**Location:** `7D2D-DecompilerScript/knowledge/` (in parent workspace)
 
-| File | Description | Use When |
-|------|-------------|----------|
-| [AI_KNOWLEDGE.md](../7D2D-DecompilerScript/knowledge/AI_KNOWLEDGE.md) | Index of all knowledge files | Starting point |
-| [entities.md](../7D2D-DecompilerScript/knowledge/entities.md) | Items, blocks, buffs with descriptions | Understanding game entities |
-| [events.md](../7D2D-DecompilerScript/knowledge/events.md) | Event system documentation | Working with game events |
-| [methods.md](../7D2D-DecompilerScript/knowledge/methods.md) | Key methods and call statistics | Finding important methods |
-| [modding-patterns.md](../7D2D-DecompilerScript/knowledge/modding-patterns.md) | Common Harmony patch patterns | Writing mods |
+| File                 | Description                          | Use When                    |
+| -------------------- | ------------------------------------ | --------------------------- |
+| AI_KNOWLEDGE.md      | Index of all knowledge files         | Starting point              |
+| entities.md          | Items, blocks, buffs with descriptions | Understanding game entities |
+| events.md            | Event system documentation           | Working with game events    |
+| methods.md           | Key methods and call statistics      | Finding important methods   |
+| modding-patterns.md  | Common Harmony patch patterns        | Writing mods                |
 
 **When to use:**
+
 - **entities.md** - Before asking "what is itemX?" or "how does buffY work?"
 - **events.md** - Before implementing event handlers or hooks
 - **methods.md** - Quick lookup of method signatures and call chains
 - **modding-patterns.md** - Reference for Harmony prefix/postfix/transpiler patterns
 
-**Full documentation:** See [AI_CONTEXT.md](../7D2D-DecompilerScript/AI_CONTEXT.md) for database schema and advanced queries.
+**Full documentation:** See `7D2D-DecompilerScript/AI_CONTEXT.md` for database schema and advanced queries.
 
 ---
 

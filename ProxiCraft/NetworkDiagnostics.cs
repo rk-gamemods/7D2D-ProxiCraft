@@ -353,7 +353,7 @@ public static class NetworkDiagnostics
 
 /// <summary>
 /// Harmony patches to observe network packet processing.
-/// 
+///
 /// Patches ConnectionManager.ProcessPackages which is where all network packets
 /// are dispatched. This allows us to detect packets from conflicting mods.
 ///
@@ -361,10 +361,22 @@ public static class NetworkDiagnostics
 /// - Prefix pattern: observes packets before processing, cannot break it
 /// - All code wrapped in try-catch with empty catch
 /// - Only active in multiplayer (ConnectionManager only used in MP)
+///
+/// OPTIMIZATION (v1.2.11):
+/// - Only processes first 10 packets per batch to limit iteration cost
+/// - Tracks total packet count without full iteration
+/// - Profiler timer added for visibility
 /// </summary>
 [HarmonyPatch(typeof(ConnectionManager), "ProcessPackages")]
 public static class NetworkPacketObserver
 {
+    // Limit how many packets we examine per batch to reduce overhead
+    private const int MAX_PACKETS_TO_EXAMINE = 10;
+
+    // Track total packets seen (for diagnostics)
+    private static long _totalPacketsObserved;
+    public static long TotalPacketsObserved => Interlocked.Read(ref _totalPacketsObserved);
+
     [HarmonyPrefix]
     public static void Prefix(List<NetPackage> ___packagesToProcess)
     {
@@ -375,17 +387,48 @@ public static class NetworkPacketObserver
             if (___packagesToProcess == null || ___packagesToProcess.Count == 0)
                 return;
 
-            foreach (var packet in ___packagesToProcess)
+            int packetCount = ___packagesToProcess.Count;
+
+            // Track total packet count (cheap atomic increment)
+            Interlocked.Add(ref _totalPacketsObserved, packetCount);
+
+            // OPTIMIZATION: Only examine first N packets per batch
+            // This gives us packet type detection without O(n) cost per frame
+            // The first batch after a new mod's packet will catch it
+            int toExamine = Math.Min(packetCount, MAX_PACKETS_TO_EXAMINE);
+
+            // Only start profiler timer if we're going to do work
+            if (PerformanceProfiler.IsEnabled)
+                PerformanceProfiler.StartTimer(PerformanceProfiler.OP_PACKET_OBSERVE);
+
+            try
             {
-                if (packet != null)
+                for (int i = 0; i < toExamine; i++)
                 {
-                    NetworkDiagnostics.OnPacketObserved(packet);
+                    var packet = ___packagesToProcess[i];
+                    if (packet != null)
+                    {
+                        NetworkDiagnostics.OnPacketObserved(packet);
+                    }
                 }
+            }
+            finally
+            {
+                if (PerformanceProfiler.IsEnabled)
+                    PerformanceProfiler.StopTimer(PerformanceProfiler.OP_PACKET_OBSERVE);
             }
         }
         catch
         {
             // Swallow everything - this patch must never disrupt packet processing
         }
+    }
+
+    /// <summary>
+    /// Resets the packet counter (called when starting new session).
+    /// </summary>
+    public static void Reset()
+    {
+        Interlocked.Exchange(ref _totalPacketsObserved, 0);
     }
 }
