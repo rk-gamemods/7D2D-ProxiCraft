@@ -52,7 +52,7 @@ internal class NetPackagePCLock : NetPackage
     {
         try
         {
-            ((NetPackage)this).write(_bw);
+            base.write(_bw);
             var writer = (BinaryWriter)(object)_bw;
             writer.Write(posX);
             writer.Write(posY);

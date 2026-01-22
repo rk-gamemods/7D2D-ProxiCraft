@@ -331,11 +331,28 @@ Press F1, then type:
 [*][b]pc status[/b] - Check if mod is working
 [*][b]pc health[/b] - Show feature health check
 [*][b]pc test[/b] - See what containers are found
-[*][b]pc fullcheck[/b] - Full diagnostic for bug reports
+[*][b]pc fullcheck[/b] - Full diagnostic for bug reports (saves to [b]fullcheck_report.txt[/b] in mod folder)
 [*][b]pc toggle[/b] - Enable/disable mod
-[*][b]pc debug[/b] - Toggle debug logging (writes to pc_debug.log in mod folder)
+[*][b]pc debug[/b] - Toggle debug logging (writes to [b]pc_debug.log[/b] in mod folder)
 [*][b]pc set range 30[/b] - Change settings
 [/list]
+
+[b]Performance Profiler Commands:[/b]
+[list]
+[*][b]pc perf on[/b] - Start profiling (resets data)
+[*][b]pc perf off[/b] - Stop profiling
+[*][b]pc perf report[/b] - Show detailed performance report (also saves to [b]perf_report.txt[/b] in mod folder)
+[/list]
+
+[b]What the profiler tells you:[/b]
+[list]
+[*][b]Proves if ProxiCraft is causing lag[/b] - All ProxiCraft operations are timed with microsecond precision. If ProxiCraft shows low times but you have lag, the problem is elsewhere.
+[*][b]Measures overall game performance[/b] - Frame timing, GC pressure, and spike detection help quantify lag for comparing before/after with different mod combinations.
+[*][b]Does NOT identify other mods[/b] - This is an "is it ProxiCraft?" tool, not a general mod debugger.
+[/list]
+
+To share a performance report, find [b]perf_report.txt[/b] in your ProxiCraft mod folder:
+[code]7 Days To Die/Mods/ProxiCraft/perf_report.txt[/code]
 
 [line]
 
@@ -355,6 +372,25 @@ Use only ONE mod of this type.
 [line]
 
 [size=4][b]Changelog[/b][/size]
+
+[b]v1.2.11 - Critical Multiplayer Crash Fix & Performance Diagnostics[/b]
+[color=#ff0000][b]🚨 CRITICAL FIX:[/b][/color]
+[list]
+[*][b]Fixed multiplayer container crash[/b] - Opening any container in multiplayer caused ALL clients to crash instantly. Root cause: infinite recursion in network packet serialization. This was a 100% crash rate bug that made the mod non-functional in multiplayer.
+[/list]
+[b]Bug Fixes:[/b]
+[list]
+[*]Fixed memory leak in lock dictionaries (periodic cleanup every 15 seconds)
+[*]Fixed coroutine race condition in handshake retry logic
+[*]Optimized NetworkPacketObserver diagnostic packet detection
+[/list]
+[b]New: Performance Profiler[/b]
+[list]
+[*]Definitively proves whether lag originates from ProxiCraft (all patches instrumented with microsecond timing)
+[*]Measures overall game metrics (frame timing, GC pressure) for comparing before/after with different mod combinations
+[*]Note: Cannot identify which OTHER mod causes lag - it's an "is ProxiCraft the problem?" diagnostic tool
+[*]Use [font=courier]pc perf on[/font], play, then [font=courier]pc perf report[/font] to diagnose
+[/list]
 
 [b]v1.2.10 - Full Magazine Reload Fix[/b]
 [list]

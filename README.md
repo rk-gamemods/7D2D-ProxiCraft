@@ -4,7 +4,7 @@ A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs usin
 
 **[Nexus Mods](https://www.nexusmods.com/7daystodie/mods/9269)** • **[GitHub](https://github.com/rk-gamemods/7D2D-ProxiCraft)**
 
-## ⬇️ [Download ProxiCraft-1.2.10.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.10.zip)
+## ⬇️ [Download ProxiCraft-1.2.11.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.11.zip)
 
 ---
 
@@ -184,12 +184,20 @@ Open console with F1:
 | `pc status` | Show mod status, config, and multiplayer state |
 | `pc health` | Show startup health check results |
 | `pc test` | Test container scanning (shows what's found) |
-| `pc fullcheck` | Full diagnostic (saves to `fullcheck_report.txt`) |
+| `pc fullcheck` | Full diagnostic (saves to `fullcheck_report.txt` in mod folder) |
 | `pc conflicts` | Check for mod conflicts |
 | `pc toggle` | Enable/disable mod temporarily |
 | `pc debug` | Toggle debug logging (writes to `pc_debug.log` in mod folder) |
 | `pc reload` | Reload config from file |
-| `pc perf on/off/report` | Performance profiling |
+| `pc perf on` | Start performance profiling (resets data) |
+| `pc perf off` | Stop performance profiling |
+| `pc perf report` | Show performance report (also saves to `perf_report.txt` in mod folder) |
+
+**About the Performance Profiler:**
+- **Proves if ProxiCraft causes lag** - All operations timed with microsecond precision
+- **Measures overall game metrics** - Frame timing, GC pressure for comparing mod combinations
+- **Does NOT identify other mods** - Only determines if ProxiCraft is the problem
+- Share reports from: `7 Days To Die/Mods/ProxiCraft/perf_report.txt`
 
 ### Configuration Commands
 
@@ -439,6 +447,22 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 ---
 
 ## Changelog
+
+### v1.2.11 - Critical Multiplayer Crash Fix & Performance Diagnostics
+
+**🚨 CRITICAL FIX:**
+- **Fixed multiplayer container crash** - Opening any container in multiplayer caused ALL clients to crash instantly. Root cause: infinite recursion in network packet serialization due to incorrect C# base method call syntax (`((NetPackage)this).write()` instead of `base.write()`). See [POSTMORTEM-v1.2.11.md](POSTMORTEM-v1.2.11.md) for the full story.
+
+**Bug Fixes:**
+- Fixed memory leak in lock dictionaries (periodic cleanup every 15 seconds)
+- Fixed coroutine race condition in handshake retry logic
+- Optimized NetworkPacketObserver to only examine first 10 packets per batch
+
+**New: Performance Profiler**
+- Definitively proves whether lag originates from ProxiCraft (all patches instrumented with microsecond timing)
+- Measures overall game metrics (frame timing, GC pressure) for comparing before/after with different mods
+- Note: Cannot identify which OTHER mod causes lag - it's an "is ProxiCraft the problem?" diagnostic tool
+- Use `pc perf on`, play, then `pc perf report` to diagnose
 
 ### v1.2.10 - Full Magazine Reload Fix
 
