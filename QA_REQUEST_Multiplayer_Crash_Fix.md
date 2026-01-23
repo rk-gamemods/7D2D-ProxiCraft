@@ -9,6 +9,7 @@
 2. **Report 2:** "I play with son and have same issue. Game will close without error when he opens inventory. There is no information in log why this happens."
 
 **Last Log Entry Before Crash:**
+
 ```
 [ProxiCraft] [Network] Handshake from 'PetarOG' latency: 6ms
 [ProxiCraft] [Multiplayer] Player 'Unknown' confirmed ProxiCraft ✓ (Unverified remaining: 0)
@@ -19,6 +20,7 @@
 ```
 
 **Key Observations:**
+
 - Crash occurs AFTER handshake completes successfully
 - HOST crashes when CLIENT opens inventory/containers
 - No error message in logs (suggests unhandled exception or native crash)
@@ -31,6 +33,7 @@
 Three potential issues were identified:
 
 ### Issue #1: Entity ID Tracking Race Condition
+
 **Location:** `MultiplayerModTracker.cs` - `OnClientHandshakeReceived()`
 
 **Problem:** When a client's handshake packet arrives, the server looks up their entity ID in `_pendingClients` dictionary. If the handshake arrives before the player spawn event fires (race condition), the entity ID isn't found, and the player name defaults to "Unknown".
@@ -38,11 +41,13 @@ Three potential issues were identified:
 **Evidence:** Log shows `Player 'Unknown' confirmed` but handshake was from `PetarOG`.
 
 ### Issue #2: Network Broadcasting During Unstable Connection
+
 **Location:** `ProxiCraft.cs` - `BroadcastLockState()`
 
 **Problem:** When the mod re-enables after handshake, any container interaction triggers a network broadcast. If this happens within milliseconds of the handshake completing, the network connection may be in a transitional state, causing `SendPackage()` to crash.
 
 ### Issue #3: Dictionary Thread-Safety
+
 **Location:** `ContainerManager.cs` - `_knownStorageDict`, `_currentStorageDict`
 
 **Problem:** These were regular `Dictionary<>` objects accessed from multiple code paths (UI updates, network events). If a network event modifies the dictionary while the UI is iterating it, a "collection was modified during enumeration" exception occurs, potentially crashing the game.
@@ -52,17 +57,20 @@ Three potential issues were identified:
 ## Changes Made
 
 ### 1. Flight Recorder System (NEW)
+
 **File:** `FlightRecorder.cs` (new file)
 
 **Purpose:** Crash diagnostics for multiplayer issues
 
 **How It Works:**
+
 - Maintains circular buffer of last 100 significant events
 - Writes to main ProxiCraft log with `[FR]` tag every 5 seconds
 - On clean shutdown, writes `[FR] === SESSION CLEAN EXIT ===` marker
 - If crash occurs, `[FR]` entries remain in log without clean exit marker
 
 **Log Format:**
+
 ```
 [ProxiCraft] [FR] === SESSION START 2024-01-12 19:30:00 ===
 [ProxiCraft] [FR] [19:30:03.456] [MP] CLIENT CONNECTING: PetarOG
@@ -77,14 +85,17 @@ Three potential issues were identified:
 ---
 
 ### 2. Entity ID Tracking Fix (Issue #1)
+
 **File:** `MultiplayerModTracker.cs`
 
 **Changes:**
+
 - `OnClientHandshakeReceived()` now accepts optional `packetPlayerName` parameter
 - If entity ID not found in `_pendingClients`, uses player name from handshake packet instead of "Unknown"
 - Added FlightRecorder logging at key multiplayer events
 
 **Before:**
+
 ```csharp
 public static void OnClientHandshakeReceived(int entityId)
 {
@@ -98,6 +109,7 @@ public static void OnClientHandshakeReceived(int entityId)
 ```
 
 **After:**
+
 ```csharp
 public static void OnClientHandshakeReceived(int entityId, string packetPlayerName = null)
 {
@@ -119,15 +131,18 @@ public static void OnClientHandshakeReceived(int entityId, string packetPlayerNa
 ---
 
 ### 3. Early Connection Window (Issue #2)
+
 **Files:** `MultiplayerModTracker.cs`, `ProxiCraft.cs`
 
 **Changes:**
+
 - Added `_modReenabledTime` timestamp tracking
 - Added `IsInEarlyConnectionWindow()` method (returns true for 3 seconds after mod re-enable)
 - `BroadcastLockState()` skips broadcasting during early window
 - `SendPackage()` wrapped in try-catch with failure logging
 
 **New Protection:**
+
 ```csharp
 private static void BroadcastLockState(...)
 {
@@ -153,15 +168,18 @@ private static void BroadcastLockState(...)
 ```
 
 **Expected Result:**
+
 - Container lock broadcasts skip for first 3 seconds after client verification
 - If SendPackage fails for any reason, error is logged but game doesn't crash
 
 ---
 
 ### 4. Thread-Safe Dictionaries (Issue #3)
+
 **Files:** `ContainerManager.cs`, `StoragePriority.cs`
 
 **Changes:**
+
 - Converted `_knownStorageDict` from `Dictionary<>` to `ConcurrentDictionary<>`
 - Converted `_currentStorageDict` from `Dictionary<>` to `ConcurrentDictionary<>`
 - Converted `_lockedPositions` from `HashSet<>` to `ConcurrentDictionary<,byte>`
@@ -176,9 +194,11 @@ private static void BroadcastLockState(...)
 ## Testing Scenarios
 
 ### Scenario 1: Basic Multiplayer Join
+
 **Setup:** Host starts game, client joins with ProxiCraft installed on both
 
 **Steps:**
+
 1. Host creates multiplayer game
 2. Client joins server
 3. Wait for handshake to complete
@@ -187,11 +207,13 @@ private static void BroadcastLockState(...)
 6. Client moves items between inventory and container
 
 **Expected:**
+
 - No crash on host or client
 - Log shows correct player name (not "Unknown")
 - Log shows `[FR]` entries for multiplayer events
 
 **Verify in Log:**
+
 ```
 [FR] [MP] CLIENT CONNECTING: <player_name>
 [FR] [MP] Player '<player_name>' verified
@@ -201,37 +223,45 @@ private static void BroadcastLockState(...)
 ---
 
 ### Scenario 2: Rapid Container Access After Join
+
 **Purpose:** Test the "early connection window" protection
 
 **Steps:**
+
 1. Host creates multiplayer game
 2. Client joins server
 3. IMMEDIATELY after "All clients verified" message, client opens a container
 4. Repeat 5 times with different containers
 
 **Expected:**
+
 - No crash
 - May see log messages about skipping broadcasts during early window
 - After 3 seconds, broadcasts should work normally
 
 **Verify in Log:**
+
 ```
 [Network] Skipping lock broadcast at <pos> - early connection window
 ```
+
 (This message may or may not appear depending on timing)
 
 ---
 
 ### Scenario 3: Multiple Clients Joining
+
 **Purpose:** Test concurrent client handling
 
 **Steps:**
+
 1. Host creates multiplayer game
 2. Client A joins
 3. While Client A is still connecting, Client B joins
 4. Both clients open containers simultaneously
 
 **Expected:**
+
 - No crash
 - Both clients verified correctly
 - Log shows correct player names for both
@@ -239,30 +269,36 @@ private static void BroadcastLockState(...)
 ---
 
 ### Scenario 4: Clean Exit Verification
+
 **Purpose:** Test flight recorder clean exit marker
 
 **Steps:**
+
 1. Host creates multiplayer game
 2. Client joins and performs some container operations
 3. Client leaves game normally (not Alt+F4)
 4. Host exits game normally
 
 **Expected:**
+
 - Log contains `[FR] === SESSION CLEAN EXIT ===` marker
 - All `[FR]` entries present in log
 
 ---
 
 ### Scenario 5: Simulated Crash (if possible)
+
 **Purpose:** Verify flight recorder captures crash data
 
 **Steps:**
+
 1. Start game, join multiplayer session
 2. Perform some operations to generate `[FR]` entries
 3. Force-quit game (Task Manager or Alt+F4)
 4. Restart game and check log
 
 **Expected:**
+
 - Log from previous session has `[FR]` entries
 - NO `[FR] === SESSION CLEAN EXIT ===` marker
 - Next session starts with new `[FR] === SESSION START ===`
@@ -305,7 +341,8 @@ Verify these existing features still work:
 
 ## Log Entries to Watch For
 
-### Success Indicators:
+### Success Indicators
+
 ```
 [FR] === SESSION START ===
 [FR] [MP] Player '<name>' verified
@@ -313,14 +350,16 @@ Verify these existing features still work:
 [FR] === SESSION CLEAN EXIT ===
 ```
 
-### Warning Indicators (not errors, but worth noting):
+### Warning Indicators (not errors, but worth noting)
+
 ```
 [Network] Skipping lock broadcast - early connection window
 [Network] Lock broadcast failed (total: N)
 [MP] EntityId X not found in pending clients (timing race)
 ```
 
-### Error Indicators:
+### Error Indicators
+
 ```
 [FR] ... (entries without CLEAN EXIT = crash occurred)
 [Network] WARNING: N lock broadcast failures. Network may be unstable.

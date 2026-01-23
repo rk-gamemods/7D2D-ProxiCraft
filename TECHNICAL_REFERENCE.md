@@ -5,23 +5,28 @@ This document contains verified technical details discovered during ProxiCraft m
 ## Game Paths
 
 ### Log File Location
+
 ```
 C:\Users\Admin\AppData\Local\Temp\The Fun Pimps\7 Days To Die\Player.log
 ```
 
 ### Game Installation
+
 ```
 C:\Steam\steamapps\common\7 Days To Die\
 ```
 
 ### Managed Assemblies
+
 ```
 C:\Steam\steamapps\common\7 Days To Die\7DaysToDie_Data\Managed\
 ```
+
 - `Assembly-CSharp.dll` - Main game code
 - `0Harmony.dll` - Located in `Mods\0_TFP_Harmony\`
 
 ### XUi Configuration Files
+
 ```
 C:\Steam\steamapps\common\7 Days To Die\Data\Config\XUi\
 ├── controls.xml    # UI control definitions and bindings
@@ -35,19 +40,24 @@ C:\Steam\steamapps\common\7 Days To Die\Data\Config\XUi\
 ## Harmony Patching
 
 ### Parameter Name Matching
+
 **CRITICAL**: Harmony Postfix/Prefix parameter names must match the original method's parameter names exactly.
 
 Example from `XUiController.GetBindingValue`:
+
 - Public method uses: `_value`, `_bindingName`  
 - Internal method uses: `value`, `bindingName`
 
 Wrong parameter names cause: `HarmonyException: Parameter "X" not found in method`
 
 ### Patch Priority
+
 Use `[HarmonyPriority(Priority.Low)]` to run after other mods.
 
 ### Dynamic Method Targeting
+
 For types not directly accessible, use `[HarmonyPatch]` with `TargetMethod()`:
+
 ```csharp
 [HarmonyPatch]
 private static class MyPatch
@@ -67,12 +77,15 @@ private static class MyPatch
 ## XUi Binding System
 
 ### How Bindings Work
+
 1. XML defines bindings with `{bindingname}` syntax
 2. Controller class implements `GetBindingValueInternal(ref string value, string bindingName)`
 3. Method sets `value` and returns `true` if binding handled
 
 ### Quest Tracker Bindings (XUiC_QuestTrackerObjectiveEntry)
+
 Found in `controls.xml` line 758:
+
 - `{objectiveoptional}` - Optional marker
 - `{objectivephasehexcolor}` - Phase color
 - `{objectivedescription}` - Description text
@@ -80,6 +93,7 @@ Found in `controls.xml` line 758:
 - `{objectivestate}` - Status text (e.g., "5/10")
 
 ### Challenge Entry Bindings (XUiC_ChallengeEntry)
+
 - Uses `{entrydescription}` for objective display
 - Controller: `ChallengeEntry`
 
@@ -88,26 +102,31 @@ Found in `controls.xml` line 758:
 ## Quest System vs Challenge System
 
 ### Quest Objectives (Traditional Quests)
+
 **Namespace**: Root namespace  
 **Base Class**: `BaseObjective`
 
 Key Classes:
+
 - `ObjectiveFetch` - Fetch items from inventory
 - `ObjectiveBaseFetchContainer` - Fetch from containers
 - `ObjectiveCraft` - Craft items
 - `ObjectiveGoto` - Go to location
 
 `ObjectiveFetch` Fields:
+
 - `expectedItem` (ItemValue)
 - `expectedItemClass` (ItemClass)
 - `currentCount` (int)
 - `itemCount` (int)
 
 ### Challenge Objectives (Challenge System)
+
 **Namespace**: `Challenges`  
 **Base Class**: `Challenges.BaseChallengeObjective`
 
 ### Class Hierarchy
+
 ```
 System.Object
   └── Challenges.BaseChallengeObjective
@@ -117,12 +136,14 @@ System.Object
 ```
 
 ### Key Classes
+
 - `Challenges.ChallengeObjectiveGather` - Gather items
 - `Challenges.ChallengeObjectiveGatherByTag` - Gather by tag
 - `Challenges.ChallengeObjectiveCraft` - Craft items
 - `Challenges.ChallengeObjectiveHarvest` - Harvest resources
 
 ### `BaseChallengeObjective` Fields (inherited)
+
 - `current` (int) - Current count
 - `MaxCount` (int) - Required count
 - `complete` (bool) - Whether objective is complete
@@ -130,10 +151,12 @@ System.Object
 - `ValueChanged` (ObjectiveValueChanged) - Event for UI updates
 
 ### `ChallengeBaseTrackedItemObjective` Fields (inherited)
+
 - `expectedItem` (ItemValue)
 - `expectedItemClass` (ItemClass)
 
 ### `ChallengeObjectiveGather` Methods
+
 - `get_DescriptionText` - Returns formatted string like "Gather Wood (5/10)"
 - `CheckObjectiveComplete(bool)` - Returns bool if objective met
 - `HandleUpdatingCurrent()` - **Updates `current` field from inventory** (KEY!)
@@ -143,6 +166,7 @@ System.Object
 - `HandleAddHooks()` - Subscribes to inventory change events
 
 ### Challenge Item Count Flow (CRITICAL)
+
 ```
 Player picks up item
     ↓
@@ -166,17 +190,21 @@ UI calls get_DescriptionText()
 ## Inventory System
 
 ### Low-Level Inventory Classes
+
 **IMPORTANT**: Many game systems query these directly, bypassing XUiM_PlayerInventory.
 
 **Bag Class** (backpack):
+
 - `Bag.GetItemCount(ItemValue, int, int, bool)` - Count items in bag
 - `Bag.GetItemCountByTag(FastTags<TagGroup.Global>)` - Count by tag
 
 **Inventory Class** (toolbelt):
+
 - `Inventory.GetItemCount(ItemValue, bool, int, int, bool)` - Count in toolbelt
 - `Inventory.GetItemCountByTag(FastTags<TagGroup.Global>)` - Count by tag
 
 ### XUiM_PlayerInventory Methods (UI Layer)
+
 - `GetItemCount(ItemValue)` - Returns count of specific item
 - `GetItemCount(int itemId)` - By item ID
 - `GetAllItemStacks()` - Returns List<ItemStack> of all items
@@ -184,6 +212,7 @@ UI calls get_DescriptionText()
 - `RemoveItems(IList<ItemStack>, int multiplier)` - Removes items from inventory
 
 ### Which Systems Use Which Layer
+
 | System | Uses | Patch Point |
 |--------|------|-------------|
 | Crafting UI | XUiM_PlayerInventory | ✅ Currently patched |
@@ -192,7 +221,9 @@ UI calls get_DescriptionText()
 | Quest objectives | BaseObjective internal methods | ❌ May need patch |
 
 ### Patching GetItemCount
+
 Direct Postfix on `XUiM_PlayerInventory.GetItemCount` works reliably for:
+
 - Crafting ingredient display
 - Recipe availability checks
 
@@ -201,13 +232,16 @@ Direct Postfix on `XUiM_PlayerInventory.GetItemCount` works reliably for:
 ## Container System
 
 ### Container Types
+
 - `TileEntitySecureLootContainer` - Standard storage containers (legacy)
 - `TileEntityComposite` - Composite containers with TEFeatureStorage (newer system)
 - `TileEntityCollector` - Dew collectors (water collection)
 - `TileEntityWorkstation` - Forges, workbenches, campfires, chemistry stations
 
 ### Vehicle Storage
+
 Vehicles store items in their `bag` property (inherited from `EntityAlive`):
+
 ```csharp
 EntityVehicle vehicle = ...;
 var bag = ((EntityAlive)vehicle).bag;
@@ -215,16 +249,21 @@ var slots = bag.GetSlots(); // ItemStack[]
 ```
 
 ### Drone Storage
+
 **CRITICAL:** Drones have a shared array between `lootContainer` and `bag`:
+
 ```csharp
 EntityDrone drone = ...;
 // These share the SAME ItemStack[] array!
 drone.lootContainer.items == drone.bag.GetSlots(); // TRUE!
 ```
+
 Always count from ONE source only (lootContainer recommended) to avoid double-counting.
 
 ### Workstation Slots
+
 Workstations have multiple slot types - only OUTPUT should be counted:
+
 ```csharp
 TileEntityWorkstation workstation = ...;
 workstation.Tool    // Tool slots (anvil, beaker) - DO NOT COUNT
@@ -234,6 +273,7 @@ workstation.Output  // Output slots (finished products) - COUNT THIS ONLY
 ```
 
 ### Container Access
+
 Containers are accessed via chunk-based TileEntity queries through `GameManager.Instance.World`.
 
 ---
@@ -241,6 +281,7 @@ Containers are accessed via chunk-based TileEntity queries through `GameManager.
 ## UI Controllers
 
 ### Quest UI Hierarchy
+
 ```
 XUiC_QuestTrackerWindow
 └── XUiC_QuestTrackerObjectiveList
@@ -250,6 +291,7 @@ XUiC_QuestTrackerWindow
 ```
 
 ### Challenge UI Hierarchy
+
 ```
 XUiC_ChallengeEntryListWindow
 └── XUiC_ChallengeGroupList
@@ -263,23 +305,29 @@ XUiC_ChallengeEntryListWindow
 ## Verified Working Patches
 
 ### Crafting - Item Count Display
+
 ```csharp
 [HarmonyPatch(typeof(XUiM_PlayerInventory), nameof(XUiM_PlayerInventory.GetItemCount), new Type[] { typeof(ItemValue) })]
 ```
+
 - Postfix adds container counts to return value
 - Works for ingredient display in crafting UI
 
 ### Crafting - Recipe Availability  
+
 ```csharp
 [HarmonyPatch(typeof(XUiC_RecipeList), "BuildRecipeInfosList")]
 ```
+
 - **Must use Prefix** (not Postfix) to add items before calculation
 - Parameter: `ref List<ItemStack> _items`
 
 ### Crafting - Has Items Check
+
 ```csharp
 [HarmonyPatch(typeof(XUiM_PlayerInventory), nameof(XUiM_PlayerInventory.HasItems))]
 ```
+
 - Postfix checks containers when inventory returns false
 
 ---
@@ -287,6 +335,7 @@ XUiC_ChallengeEntryListWindow
 ## Assembly Inspection
 
 ### PowerShell: Load and Inspect Assembly
+
 ```powershell
 $assembly = [System.Reflection.Assembly]::LoadFrom("path\to\Assembly-CSharp.dll")
 $type = $assembly.GetType("ClassName")
@@ -295,6 +344,7 @@ $type.GetFields([System.Reflection.BindingFlags]::Instance -bor [System.Reflecti
 ```
 
 ### PowerShell: Search for Types
+
 ```powershell
 $assembly.GetTypes() | Where-Object { $_.Name -like "*Pattern*" } | Select-Object Name, FullName
 ```
@@ -304,12 +354,15 @@ $assembly.GetTypes() | Where-Object { $_.Name -like "*Pattern*" } | Select-Objec
 ## Build Configuration
 
 ### Project Output
+
 ```xml
 <OutputPath>Release\ProxiCraft\</OutputPath>
 ```
+
 Builds directly to distribution folder.
 
 ### Target Framework
+
 ```xml
 <TargetFramework>net48</TargetFramework>
 ```
@@ -328,7 +381,9 @@ Builds directly to distribution folder.
 ## Performance: Item Count Caching Strategy
 
 ### The Problem
+
 When checking recipe availability, the game calls `GetItemCount()` for each ingredient (potentially 10-20 items). Without caching, each call would scan:
+
 - All chunks and TileEntities (storage containers)
 - All world entities (vehicles, drones)
 - All TileEntityCollectors (dew collectors)  
@@ -471,6 +526,7 @@ pc perf report   - Detailed multi-section timing report
 ### Performance Optimizations Applied
 
 1. **Squared Distance Comparison** - Avoids expensive `sqrt()` in distance checks
+
    ```csharp
    // Before (expensive):
    if (Vector3.Distance(a, b) >= range)
@@ -481,6 +537,7 @@ pc perf report   - Detailed multi-section timing report
    ```
 
 2. **Direct Dictionary Iteration** - Avoids allocation from `.ToArray()`
+
    ```csharp
    // Before (allocates array):
    foreach (var chunk in dict.Values.ToArray())
@@ -490,6 +547,7 @@ pc perf report   - Detailed multi-section timing report
    ```
 
 3. **For Loops on Arrays** - Avoids enumerator allocation
+
    ```csharp
    // Before (allocates enumerator):
    foreach (var item in array)
@@ -499,6 +557,7 @@ pc perf report   - Detailed multi-section timing report
    ```
 
 4. **Pre-computed Constants** - Calculate once, use many times
+
    ```csharp
    float rangeSquared = range * range; // Once before loop
    ```
@@ -506,11 +565,13 @@ pc perf report   - Detailed multi-section timing report
 ### Real-World Performance Test Results
 
 **Test Environment:**
+
 - CPU: AMD Ryzen 9800X3D (high-end reference)
 - Storage sources: ~20 containers of mixed types (chests, vehicles, drones, workstations, dew collectors)
 - Game version: 7D2D V2.5
 
 **Results:**
+
 ```
 ╔══════════════════════════════════════════════════════════════════╗
 ║ Operation              │ Calls │ Avg(ms) │ Max(ms) │ Cache Hit % ║
@@ -527,12 +588,14 @@ pc perf report   - Detailed multi-section timing report
 ```
 
 **Analysis:**
+
 - **6,627 item queries** handled with 98.7% cache hit rate
 - **GetItemCount** averages 0.00ms (sub-microsecond when cached)
 - **RefreshStorages** cold-cache first scan: 2.39ms; subsequent 7 calls average 0.16ms
 - **Full cache rebuild** takes only 0.15ms average
 
 **Marginal Overhead Assessment:**
+
 - ProxiCraft adds minimal overhead to whatever frame budget remains after base game + other mods
 - Worst-case 2.39ms spike happens once (cold cache), then operations stay under 0.5ms
 - Cache efficiency (98.7%) means most item queries add essentially zero overhead
@@ -544,6 +607,7 @@ pc perf report   - Detailed multi-section timing report
 ## Patch Strategy Summary
 
 ### The Problem with UI-Layer Patches
+
 Patching only the UI layer (e.g., `XUiM_PlayerInventory`) doesn't work for systems that bypass it. The Challenge system directly queries `Player.bag` and `Player.inventory`, never going through `XUiM_PlayerInventory`.
 
 ### Recommended Patch Points by Feature
@@ -556,7 +620,9 @@ Patching only the UI layer (e.g., `XUiM_PlayerInventory`) doesn't work for syste
 | Quest fetch objectives | `ObjectiveFetch` internal methods | Direct item queries |
 
 ### The "Trick the game" approach
+
 Instead of patching every consumer, patch at the source:
+
 - `Bag.GetItemCount` - Would affect ALL bag queries
 - `Inventory.GetItemCount` - Would affect ALL inventory queries
 
@@ -573,6 +639,7 @@ ProxiCraft v1.2.1 introduces the **Subsystem-Centric Virtual Inventory (SCVI)** 
 ### The Problem
 
 Traditional container mods patch each game method individually:
+
 - GetItemCount patch for crafting
 - RemoveItems patch for crafting
 - CanReload patch for reload
@@ -580,6 +647,7 @@ Traditional container mods patch each game method individually:
 - etc.
 
 This creates problems:
+
 1. **Scattered safety checks** - Each patch must implement its own multiplayer safety
 2. **Inconsistent behavior** - Bugs fixed in one patch may exist in others
 3. **Hard to debug** - Problems could be anywhere
@@ -643,6 +711,7 @@ This happens in ONE place, affecting ALL features automatically.
 ### Enhanced Safety Mode
 
 Each feature has an optional Enhanced Safety flag:
+
 - `enhancedSafetyCrafting` - Crafting operations
 - `enhancedSafetyReload` - Weapon reload
 - `enhancedSafetyRepair` - Block repair/upgrade
@@ -666,6 +735,7 @@ The VirtualInventoryProvider is stateless - it queries current game state each c
 This avoids cache synchronization issues in multiplayer.
 
 Patches that use VirtualInventoryProvider:
+
 - `XUiM_PlayerInventory.GetItemCount` (crafting)
 - `XUiM_PlayerInventory.HasItems` (crafting)
 - `XUiM_PlayerInventory.RemoveItems` (crafting)
@@ -707,6 +777,7 @@ Client                                Server
 ### "Guilty Until Proven Innocent"
 
 When ANY client connects:
+
 1. `multiplayerModLocked = true` (IMMEDIATELY)
 2. Timer starts for handshake timeout
 3. If handshake received → unlock for that client
@@ -797,6 +868,7 @@ if (kvp.Value is EntityStorage es)
 ### Automatic Recovery
 
 When a catch block fires:
+
 1. `_storageRefreshNeeded` flag is set
 2. On next `RefreshStorages()` call, both storage dictionaries are cleared
 3. Full rescan rebuilds with fresh, valid references
@@ -805,6 +877,7 @@ When a catch block fires:
 ### Log Messages
 
 Watch for these in Player.log to diagnose frequency:
+
 ```
 [CrashPrevention] EntityStorage became invalid during item removal at (X,Y,Z): NullReferenceException
 [CrashPrevention] TileEntity error during item removal at (X,Y,Z): InvalidOperationException - message
@@ -814,6 +887,7 @@ Watch for these in Player.log to diagnose frequency:
 ### Future Enhancement (Documented)
 
 If crashes persist with EntityStorage, add re-validation per slot:
+
 ```csharp
 for (int i = 0; i < slots.Length && remaining > 0; i++)
 {
@@ -821,6 +895,7 @@ for (int i = 0; i < slots.Length && remaining > 0; i++)
     // ...
 }
 ```
+
 Currently not implemented as the try-catch provides sufficient protection.
 
 ---
@@ -832,11 +907,13 @@ Currently not implemented as the try-catch provides sufficient protection.
 Container lock dictionaries (`_containerLocks` in `ContainerLockManager`) track which containers are locked by which players. Without cleanup, these dictionaries grow unbounded during long multiplayer sessions.
 
 **Problem:**
+
 - Lock entries created for each container interaction
 - Entries expire but were never removed
 - Dictionary grows indefinitely over 8+ hour sessions
 
 **Solution (v1.2.11):**
+
 ```csharp
 // Periodic cleanup runs every 15 seconds
 private const double CLEANUP_INTERVAL_SECONDS = 15.0;
@@ -853,6 +930,7 @@ private static void CleanupExpiredLocks()
 ```
 
 **Diagnostics:** `pc perf report` shows:
+
 - Current lock dictionary size
 - Peak dictionary size
 - Number of entries cleaned up
@@ -862,11 +940,13 @@ private static void CleanupExpiredLocks()
 Handshake retry coroutines could start multiple times if the initial handshake failed quickly.
 
 **Problem:**
+
 - `StartCoroutine()` called without checking if already running
 - Multiple concurrent coroutines sending redundant packets
 - Potential for coroutine accumulation
 
 **Solution (v1.2.11):**
+
 ```csharp
 private static volatile int _handshakeCoroutineActive = 0;
 
@@ -888,6 +968,7 @@ IEnumerator RetryHandshake()
 ```
 
 **Diagnostics:** `pc perf report` shows:
+
 - Active coroutine count
 - Peak coroutine count
 - Total coroutines started
@@ -897,11 +978,13 @@ IEnumerator RetryHandshake()
 The packet observer examined ALL packets in multiplayer, which could be thousands per frame.
 
 **Problem:**
+
 - `ProcessPackages()` called per network frame
 - Observer examined every packet looking for ProxiCraft packets
 - O(n) scanning on every frame
 
 **Solution (v1.2.11):**
+
 ```csharp
 // Only examine first 10 packets - ProxiCraft packets appear early in the queue
 private const int MAX_PACKETS_TO_OBSERVE = 10;
@@ -914,4 +997,3 @@ foreach (var packet in packets)
 ```
 
 **Note:** In singleplayer, the observer is NOT active because `ConnectionManager.ProcessPackages` is never called when `IsServer=true` and `ClientCount=0`.
-

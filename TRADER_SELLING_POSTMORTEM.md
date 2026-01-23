@@ -19,6 +19,7 @@ The "buy from containers" feature (paying with dukes from storage) remains funct
 **Goal:** Allow players to sell items stored in nearby containers to traders without first moving items to their inventory.
 
 **User Experience:**
+
 1. Player opens trader, clicks on item in inventory
 2. Sell quantity slider shows TOTAL count (inventory + containers)
 3. Player selects quantity (even if > inventory count)
@@ -30,14 +31,16 @@ The "buy from containers" feature (paying with dukes from storage) remains funct
 
 **90% functional** - The feature worked in most normal cases. Failed edge cases caused item duplication.
 
-### What Worked:
+### What Worked
+
 - ✅ Displaying combined count in sell UI (inventory + containers)
 - ✅ Pulling items from containers before sale
 - ✅ Normal NPC trader transactions
 - ✅ Basic vending machine transactions
 - ✅ Bundle size validation
 
-### What Failed:
+### What Failed
+
 - ❌ Edge case: Full inventory (no room for dukes) → **DUPLICATION**
 - ❌ Edge case: Trader at item limit → **DUPLICATION**  
 - ❌ Edge case: Vending machine full → **DUPLICATION**
@@ -75,6 +78,7 @@ The "buy from containers" feature (paying with dukes from storage) remains funct
 If we add items to the slot in PREFIX, but vanilla exits early due to any check, those items stay in inventory = DUPLICATION.
 
 We tried to solve this by **replicating all vanilla checks** in our prefix, but:
+
 1. Game code is complex (~180 lines with many conditions)
 2. Two completely different paths (NPC trader vs. vending machine)
 3. Hidden dependencies on game state we can't fully observe
@@ -152,6 +156,7 @@ private static class ItemActionEntrySell_OnActivated_Patch
 `CanSwapItems(itemStack, coinStack, slotNumber)` is the final check for NPC trader sales. It verifies the player has room for the coins they'll receive.
 
 **Problem:** This is a complex method that considers:
+
 - Current slot contents
 - Whether coins can stack with existing coins
 - Backpack vs toolbelt slot locations
@@ -164,30 +169,37 @@ We called it with our best approximation of the parameters, but any mismatch wit
 ## Alternative Approaches Considered
 
 ### 1. Transpiler Injection ❌
+
 Inject code AFTER all checks pass but BEFORE the subtraction.
 
-**Why rejected:** 
+**Why rejected:**
+
 - Two completely different code paths (NPC vs vending)
 - Multiple subtraction points in the code
 - Extremely fragile to game updates
 
 ### 2. Postfix-Only Approach ❌
+
 Only remove from containers AFTER confirming sale happened.
 
 **Problem:** Vanilla gives coins based on `BuySellCounter.Count`. If we set that to include container items, vanilla gives coins for items we never took. If we don't set it, user can only sell what's in slot.
 
 ### 3. Complete Override ❌
+
 Replace the entire `OnActivated` method.
 
 **Why rejected:**
+
 - Would break with every game update
 - Would conflict with any other mod touching trader
 - Maintenance nightmare
 
 ### 4. Duke-Only Mode ✅ (Implemented)
+
 Only support container access for currency (dukes), not for selling goods.
 
 **Why this works:**
+
 - Buying (paying with dukes) has much simpler failure cases
 - No bundle sizes, no trader limits, no vending machine logic
 - Just check: can player receive the item? Remove dukes from containers.
@@ -197,6 +209,7 @@ Only support container access for currency (dukes), not for selling goods.
 ## The Duplication Bug in Detail
 
 ### Reproduction Steps (Before Fix)
+
 1. Have 10 grenades in inventory, 50 grenades in nearby container
 2. Open trader, click grenades in inventory
 3. UI shows "60" available to sell
@@ -227,18 +240,23 @@ slot.count -= sellAmount;
 ## Lessons Learned
 
 ### 1. Prefix Patches That Modify State Are Dangerous
+
 If the original method can exit early, any state changes in prefix persist.
 
 ### 2. Replicating Game Logic Is A Maintenance Trap
+
 You're now responsible for updating your copy whenever the game updates.
 
 ### 3. Black Box Methods Are Red Flags
+
 If you can't fully understand what a method checks, you can't safely call it.
 
 ### 4. Item Duplication Is The Worst Bug
+
 Harder to detect, harder to reproduce, damages player saves permanently.
 
 ### 5. 80/20 Rule Applies
+
 The buying feature (pay with dukes) gives 80% of the value with 20% of the complexity.
 
 ---
@@ -246,18 +264,23 @@ The buying feature (pay with dukes) gives 80% of the value with 20% of the compl
 ## Future Possibilities
 
 ### If TFP Adds Mod Hooks
+
 If the game adds events like `OnBeforeSell` and `OnAfterSell`, this becomes trivial:
+
 - `OnBeforeSell`: Validate and stage container items
 - `OnAfterSell`: Commit the removal
 - `OnSellCancelled`: Rollback staged items
 
 ### If We Build A State Machine
+
 A complex but robust approach:
+
 1. Prefix: Stage items (mark as "pending removal" but don't actually move)
 2. Postfix: Check if sale succeeded, then commit or rollback
 3. Requires tracking staged state across the method call
 
 ### Transpiler With Full IL Analysis
+
 Identify ALL exit points in the method and inject rollback code at each one.
 Extremely complex, extremely fragile, not recommended.
 
@@ -266,6 +289,7 @@ Extremely complex, extremely fragile, not recommended.
 ## Code Location (Removed)
 
 The removed code was in `ProxiCraft.cs`:
+
 - Lines 1416-1518: `XUiC_ItemInfoWindow_SetItemStack_Patch`
 - Lines 1520-1752: `ItemActionEntrySell_OnActivated_Patch`
 
@@ -276,12 +300,14 @@ Config option removed: `enableTraderSelling`
 ## Conclusion
 
 The feature was technically achievable but the risk/reward ratio was unacceptable:
+
 - **Risk:** Item duplication bugs that corrupt player saves
 - **Reward:** Convenience of selling without moving items first
 
 The buying feature (paying with dukes from containers) provides the most valuable use case with minimal risk, so that remains enabled.
 
 If you're reading this for a future attempt, consider:
+
 1. Waiting for official mod hooks from TFP
 2. Building a proper staging/commit/rollback system
 3. Accepting that some vanilla code paths are too complex to safely intercept

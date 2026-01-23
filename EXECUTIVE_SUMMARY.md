@@ -5,7 +5,7 @@
 This document summarizes the comprehensive rewrite that resulted in the ProxiCraft mod for 7 Days to Die, transforming a functional but fragile single-file implementation into a robust, maintainable, and highly compatible modular codebase with **new features** not present in any prior version.
 
 **Inspired By:** CraftFromContainers community lineage (llmonmonll → aedenthorn → SYN0N1M → others)
-**This Version:** 1.0.0
+**This Version:** 2.0.0
 **Date:** December 2024
 **Repository:** [github.com/rk-gamemods/7D2D-ProxiCraft](https://github.com/rk-gamemods/7D2D-ProxiCraft)
 
@@ -53,7 +53,7 @@ This document summarizes the comprehensive rewrite that resulted in the ProxiCra
 
 ### Separation of Concerns
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                        ProxiCraft                            │
 │                  (Entry Point & Patches)                     │
@@ -74,6 +74,7 @@ This document summarizes the comprehensive rewrite that resulted in the ProxiCra
 ### 1. Comprehensive Error Handling
 
 **Before:**
+
 ```csharp
 // No error handling - exceptions propagate and crash
 var items = GetStorageItems();
@@ -81,6 +82,7 @@ items.AddRange(containerItems);
 ```
 
 **After:**
+
 ```csharp
 try
 {
@@ -99,6 +101,7 @@ catch (Exception ex)
 ```
 
 **Benefits:**
+
 - Game never crashes due to mod errors
 - Errors are logged with context for troubleshooting
 - Features degrade gracefully (disable broken feature, keep others working)
@@ -115,7 +118,8 @@ Four log levels with configurable debug mode:
 | Error | `LogError()` | Critical failures requiring attention |
 
 **Example Output:**
-```
+
+```text
 [ProxiCraft] v2.0.0 initialized with 12 patches
 [ProxiCraft] Found 1 backpack mod(s) - using additive patching
 [ProxiCraft] [DEBUG] Added 47 item stacks from containers
@@ -137,6 +141,7 @@ public enum PatchStrategy
 ```
 
 **Decision Flow:**
+
 1. Check if method exists with expected signature
 2. Check if other mods have Transpilers on same method
 3. Select safest compatible strategy
@@ -145,6 +150,7 @@ public enum PatchStrategy
 ### 4. Backpack Mod Compatibility
 
 **The Core Problem:**
+
 - Backpack mods modify inventory structure (add slots, change bag size)
 - Original mods modified inventory methods directly
 - Both mods fighting over same methods = crashes
@@ -159,6 +165,7 @@ public enum PatchStrategy
 | Remove items | Remove remainder | Inventory removes first |
 
 **Recognized Compatible Mods:**
+
 - BiggerBackpack
 - 60SlotBackpack / 96SlotBackpack
 - BackpackExpansion
@@ -169,7 +176,7 @@ public enum PatchStrategy
 
 Automatic detection at startup:
 
-```
+```text
 === POTENTIAL MOD CONFLICTS DETECTED (2) ===
   [High Risk Conflict] CraftFromChests
     Issue: Similar mod - will conflict with same patches
@@ -194,7 +201,8 @@ New `pc` command for runtime diagnostics:
 | `pc debug` | Toggle debug logging |
 
 **Example `pc diag` Output:**
-```
+
+```text
 === ProxiCraft Diagnostic Report ===
 Mod Version: 2.0.0
 Game Version: Alpha 21.2 (b37)
@@ -230,7 +238,8 @@ Successful: 11, Failed: 1
 
 **Before:** Scanned all containers on every crafting check (expensive)
 
-**After:** 
+**After:**
+
 - 100ms cache cooldown between scans
 - Position-based invalidation (only rescan when player moves)
 - Lazy initialization of storage lists
@@ -279,6 +288,7 @@ public static List<ItemStack> GetStorageItems(ModConfig config)
 ### 2. Multiplayer Synchronization
 
 Container lock state is now properly broadcast to all clients:
+
 - Prevents race conditions when multiple players craft
 - Uses custom `NetPackagePCLock` for efficient sync
 
@@ -316,7 +326,7 @@ For users upgrading from v1.x:
 
 ## Files Changed
 
-```
+```text
 ProxiCraft/
 ├── ProxiCraft/           # Source code
 │   ├── ProxiCraft.cs     # Main mod with Harmony patches

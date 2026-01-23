@@ -31,6 +31,7 @@ Use items from nearby containers for:
 | **Locked Slot Respect** | Items in locked container slots are excluded |
 
 **Storage Sources:**
+
 - Standard containers (chests, boxes, storage crates)
 - Vehicle storage (minibike, motorcycle, 4x4, gyrocopter)
 - Drone cargo compartment
@@ -45,7 +46,7 @@ ProxiCraft includes experimental multiplayer support with automatic crash protec
 
 **How It Works - "Guilty Until Proven Innocent":**
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │ Multiplayer Safety Flow                                     │
 ├─────────────────────────────────────────────────────────────┤
@@ -67,6 +68,7 @@ ProxiCraft includes experimental multiplayer support with automatic crash protec
 ```
 
 **Safety Features:**
+
 - **Immediate Lock** - Storage access blocked instantly when any client connects (zero crash window)
 - **Quick Unlock** - Resumes in ~100-300ms after verifying client has mod
 - **Culprit Identification** - Shows exactly which player needs to install the mod
@@ -90,12 +92,14 @@ ProxiCraft includes experimental multiplayer support with automatic crash protec
 ⚠️ **WARNING:** Setting `multiplayerImmediateLock=false` removes crash protection. Only use on moderated servers where you enforce mod installation externally.
 
 **Settings Sync Behavior:**
+
 - **Server-synced:** `range`, all `pullFrom*`, all `enableFor*`, `storagePriority`, `respectLockedSlots`, `allowLockedContainers`
 - **Local-only (never synced):** `isDebug`, `modEnabled`, `verboseHealthCheck`, `multiplayerImmediateLock`, `multiplayerHandshakeTimeoutSeconds`, all `enhancedSafety*` settings
 
 Debug logging cannot be enabled remotely by a server - each player controls their own logging.
 
 **Testing Status:**
+
 - Single player ✅
 - Basic dedicated server ✅
 - Co-op hosting ⚠️ (needs more testing)
@@ -194,6 +198,7 @@ Open console with F1:
 | `pc perf report` | Show performance report (also saves to `perf_report.txt` in mod folder) |
 
 **About the Performance Profiler:**
+
 - **Proves if ProxiCraft causes lag** - All operations timed with microsecond precision
 - **Measures overall game metrics** - Frame timing, GC pressure for comparing mod combinations
 - **Does NOT identify other mods** - Only determines if ProxiCraft is the problem
@@ -201,7 +206,7 @@ Open console with F1:
 
 ### Configuration Commands
 
-```
+```text
 pc config list              # List all settings
 pc set range 30             # Change range to 30
 pc config save              # Save changes to file
@@ -265,6 +270,7 @@ ProxiCraft is designed to survive game updates:
 **Important:** ProxiCraft's container lock system is a **UX courtesy**, not crash prevention.
 
 **When are locks created?**
+
 | Action | Lock Created? | Why |
 |--------|---------------|-----|
 | Player opens container UI (press E) | ✅ YES | Vanilla game creates lock |
@@ -274,17 +280,20 @@ ProxiCraft is designed to survive game updates:
 | Player refuels vehicle/generator | ❌ NO | No UI opened |
 
 **What locks protect:**
+
 - When Player A has a container UI open, ProxiCraft tells other players to **skip** that container
 - This prevents "where did my items go?" confusion when items disappear from an open UI
 - **This is NOT required to prevent crashes** - just for better UX
 
 **What if there were no locks?**
+
 - Player A opens container, sees 10 concrete
 - Player B repairs a block, ProxiCraft removes 1 concrete from that container
 - Player A's UI still shows 10 until they close and reopen
 - No crash, just mild confusion
 
 **Multiple players using remote features (repair, reload, etc.):**
+
 - These features **never create locks** because they never open container UIs
 - Multiple players CAN pull from the same storage simultaneously
 - The game processes requests sequentially (single-threaded)
@@ -301,7 +310,7 @@ ProxiCraft is designed to survive game updates:
 
 #### Container Lock Flow
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │ PLAYER OPENS CONTAINER                                                       │
 ├─────────────────────────────────────────────────────────────────────────────┤
@@ -370,7 +379,7 @@ ProxiCraft is designed to survive game updates:
 
 #### Lock Expiration (Self-Healing)
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────┐
 │ Lock added at T=0      T=30s                                   │
 │      │                     │                                   │
@@ -409,7 +418,7 @@ ProxiCraft is designed to survive game updates:
 
 ### Project Structure
 
-```
+```text
 ProxiCraft/
 ├── ProxiCraft/
 │   ├── ProxiCraft.cs              # Main mod, Harmony patches
@@ -451,14 +460,17 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 ### v1.2.11 - Critical Multiplayer Crash Fix & Performance Diagnostics
 
 **🚨 CRITICAL FIX:**
+
 - **Fixed multiplayer container crash** - Opening any container in multiplayer caused ALL clients to crash instantly. Root cause: infinite recursion in network packet serialization due to incorrect C# base method call syntax (`((NetPackage)this).write()` instead of `base.write()`). See [POSTMORTEM-v1.2.11.md](POSTMORTEM-v1.2.11.md) for the full story.
 
 **Bug Fixes:**
+
 - Fixed memory leak in lock dictionaries (periodic cleanup every 15 seconds)
 - Fixed coroutine race condition in handshake retry logic
 - Optimized NetworkPacketObserver to only examine first 10 packets per batch
 
 **New: Performance Profiler**
+
 - Definitively proves whether lag originates from ProxiCraft (all patches instrumented with microsecond timing)
 - Measures overall game metrics (frame timing, GC pressure) for comparing before/after with different mods
 - Note: Cannot identify which OTHER mod causes lag - it's an "is ProxiCraft the problem?" diagnostic tool
@@ -467,6 +479,7 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 ### v1.2.10 - Full Magazine Reload Fix
 
 **Fixed:**
+
 - Fixed bug where guns could be reloaded even when magazine was full when using ammo from containers
 - Vanilla behavior restored: reload is now blocked when magazine is already at capacity
 
@@ -475,6 +488,7 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 Addresses reported issue: "Clients cannot open containers, server crashes when other players open anything"
 
 **Changes:**
+
 - Added missing `IsModAllowed()` safety check to container lock/unlock broadcasts
 - Added defensive dictionary access to prevent potential crashes from concurrent modification
 - Added throttled diagnostic logging when safety system blocks broadcasts
@@ -486,6 +500,7 @@ Please report back if you were experiencing multiplayer container issues!
 Investigating reported crash: "Host crashes when client opens containers"
 
 **Changes:**
+
 - Added thread-safe counters for client verification
 - Added defensive snapshots when iterating container locks during disconnect
 - Player name now falls back to handshake packet when entity lookup fails
@@ -497,6 +512,7 @@ Please report back if you were experiencing multiplayer crashes!
 ### v1.2.7 - Network Stability & Robustness Improvements
 
 **Fixed:**
+
 - Fixed multiplayer handshake packet loss causing mod to lock up for entire server session
 - Fixed orphan container locks when players disconnect (containers no longer stay "locked" forever)
 - Fixed race condition where out-of-order packets could cause ghost locks (last-write-wins ordering)
@@ -507,6 +523,7 @@ Please report back if you were experiencing multiplayer crashes!
 - Improved error handling in packet deserialization
 
 **Robustness Improvements:**
+
 - Added defensive measures for rare edge cases during item removal operations:
   - Pre-check TileEntity.IsRemoving before container access (prevents crash if block destroyed mid-operation)
   - Chunk read locks with proper finally blocks during modifications (prevents crash if chunk unloads)
@@ -516,6 +533,7 @@ Please report back if you were experiencing multiplayer crashes!
 ### v1.2.6 - Config File Bug Fix
 
 **Fixed:**
+
 - Fixed config settings being overwritten on game load
 - Fixed race condition in config file watcher
 - Fixed potential integer overflow in item count cache
@@ -523,6 +541,7 @@ Please report back if you were experiencing multiplayer crashes!
 ### v1.2.5 - Hosting Panel Compatibility
 
 **Fixed:**
+
 - Fixed mod failing to load on some dedicated server hosting panels (CubeCoders AMP, etc.)
 
 **For Server Hosts (if auto-detection still fails):**
@@ -530,6 +549,7 @@ Please report back if you were experiencing multiplayer crashes!
 You can manually tell ProxiCraft where it's installed by setting an environment variable called `PROXICRAFT_PATH` to the full folder path (e.g., `C:\GameServers\7DaysToDie\Mods\ProxiCraft`).
 
 **Windows 10/11:**
+
 1. Press `Win + R` to open Run dialog
 2. Type `sysdm.cpl` and press Enter
 3. Click the **Advanced** tab
@@ -545,12 +565,14 @@ You can manually tell ProxiCraft where it's installed by setting an environment 
 ### v1.2.4 - Enhanced Safety Fix
 
 **Fixed:**
+
 - Fixed enhanced safety mode breaking features (repair, reload, etc.) when switching between game sessions
 - Multiplayer state now properly resets when starting a new game, preventing stale flags from blocking functionality
 
 ### v1.2.3 - Configuration Defaults Update
 
 **Changed:**
+
 - Enhanced Safety Mode now enabled by default (recommended for multiplayer stability)
 - All `enhancedSafety*` settings default to `true` for new installations
 - Configuration documentation expanded with all 30+ settings comprehensively documented
@@ -560,17 +582,20 @@ You can manually tell ProxiCraft where it's installed by setting an environment 
 ### v1.2.2 - Hotfix
 
 **Fixed:**
+
 - Health check report now shows all features (VehicleRepair, HudAmmoCounter, RecipeTracker, TraderSelling, LockedSlots were missing from grouped output)
 
 ### v1.2.1 - Virtual Inventory Architecture & Multiplayer Safety
 
 **New:**
+
 - 🧪 **EXPERIMENTAL Multiplayer Support** with Virtual Inventory architecture
 - **Zero-Crash Protection** - "Guilty Until Proven Innocent" instant lock on client connect *(GreenGhost21, optimus0, GeeButtersnaps)*
 - **Server Config Sync** - Clients use server's settings automatically
 - **Configurable Storage Priority** - Control search order
 
 **Fixed:**
+
 - `pc help` command loop
 - Vehicle repair kit loss with full inventory
 - Duplicate profiler timer calls
@@ -578,10 +603,12 @@ You can manually tell ProxiCraft where it's installed by setting an environment 
 ### v1.2.0 - Features & Bug Fixes
 
 **New:**
+
 - HUD ammo counter for container ammo
 - Locked slot respect
 
 **Fixed:**
+
 - Radial menu reload greyed out *(falkon311)*
 - R-key reload blocked *(falkon311)*
 - Block upgrade material consumption *(falkon311)*

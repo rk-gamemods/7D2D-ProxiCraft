@@ -23,7 +23,7 @@ This guide documents the inventory event system in 7 Days to Die (V1.0+), based 
 
 ### Player Inventory Components
 
-```
+```text
 EntityPlayerLocal
 ├── bag (Bag)                    // Player backpack (main inventory)
 │   └── GetSlots() → ItemStack[]
@@ -35,7 +35,7 @@ EntityPlayerLocal
 
 ### UI Components
 
-```
+```text
 LocalPlayerUI.primaryUI
 ├── xui (XUi)
 │   ├── PlayerInventory (XUiM_PlayerInventory)
@@ -48,7 +48,7 @@ LocalPlayerUI.primaryUI
 
 ### Storage Containers
 
-```
+```text
 TileEntity (world block)
 ├── TileEntityLootContainer      // Simple loot containers
 └── TileEntityComposite          // Player-placed storage
@@ -94,7 +94,7 @@ player.DragAndDropItemChanged += ItemsChangedInternal;
 
 ### Shift+Click (Fast Transfer)
 
-```
+```text
 User shift+clicks item in backpack
     ↓
 XUiC_ItemStack detects click
@@ -110,7 +110,7 @@ Challenges recount via ItemsChangedInternal()
 
 ### Manual Drag & Drop
 
-```
+```text
 User clicks item (picks up)
     ↓
 DragAndDropItemChanged fires (item on cursor)
@@ -128,7 +128,7 @@ TileEntity.UpdateSlot() called
 
 ### Split Stack (Right-Click Drag)
 
-```
+```text
 User right-clicks stack (picks up half)
     ↓
 DragAndDropItemChanged fires
@@ -186,7 +186,7 @@ This can be used to check if a container is currently open by a player.
 
 ### Challenge Update Flow
 
-```
+```text
 Event fires (backpack/toolbelt/dragdrop changed)
     ↓
 ChallengeObjectiveGather.ItemsChangedInternal()
@@ -205,6 +205,7 @@ HandleUpdatingCurrent()
 To include container items in challenge counts:
 
 1. **Fire events when containers change:**
+
    ```csharp
    [HarmonyPatch(typeof(XUiC_LootContainer), "HandleLootSlotChangedEvent")]
    static void Postfix() {
@@ -214,6 +215,7 @@ To include container items in challenge counts:
    ```
 
 2. **Modify the Current field in HandleUpdatingCurrent:**
+
    ```csharp
    [HarmonyPatch(typeof(ChallengeObjectiveGather), "HandleUpdatingCurrent")]
    static void Postfix(object __instance) {
@@ -269,7 +271,8 @@ To include container items in challenge counts:
 
 **Cause:** `xui.WindowGroups` doesn't contain gameplay windows.
 
-**Solution:** 
+**Solution:**
+
 - Use `xui.lootContainer` (set during OnOpen)
 - Or patch `XUiC_LootContainer` methods directly
 

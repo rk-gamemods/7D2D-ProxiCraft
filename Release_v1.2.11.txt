@@ -1,58 +1,43 @@
 [size=4][b]ProxiCraft v1.2.11[/b][/size]
 
-[color=#ff0000][size=3][b]🚨 CRITICAL MULTIPLAYER FIX[/b][/size][/color]
+[color=#ff0000][b]🚨 CRITICAL FIX: Multiplayer Container Crash[/b][/color]
 
-This release fixes a critical bug that caused 100% crash rate in multiplayer. If you were experiencing crashes when anyone opened a container on your server, this is the fix.
+Fixed a bug causing a [b]100% crash rate[/b] in multiplayer. Opening *any* container (chest, mailbox, etc.) would instantly disconnect all clients.
+The root cause was an infinite loop in the network code. If your server disconnected everyone whenever a box was opened, this update fixes it immediately.
 
-[b]🚨 Critical Fix:[/b]
+[size=2][i]Technical: Fixed infinite recursion in NetPackagePCLock due to incorrect base method call syntax (`((NetPackage)this)` vs `base`).[/i][/size]
+
+[line]
+
+[b]New Feature: Performance Profiler[/b]
+A diagnostic tool to definitively prove if ProxiCraft is causing lag. This instruments [b]every[/b] ProxiCraft patch with microsecond-precision timers.
+
+[b]What it tells you:[/b]
 [list]
-[*][b]Fixed multiplayer container crash[/b] - Opening any container (chest, mailbox, storage box, etc.) in multiplayer caused ALL connected clients to crash instantly. The server stayed running but every player got disconnected.
-[*][b]Root cause:[/b] Infinite recursion in network packet serialization. The code used `((NetPackage)this).write()` instead of `base.write()` - a subtle C# mistake where casting doesn't bypass virtual method dispatch. This caused a stack overflow that corrupted network data, which clients then tried to parse as invalid packet IDs.
-[*][b]Why it was hard to find:[/b] Client logs showed misleading "Unknown NetPackage ID: xyx" errors (the numbers were actually container X coordinates!). The real error was buried in server DEBUG logs as a caught exception.
-[/list]
-
-[b]Additional Bug Fixes:[/b]
-[list]
-[*][b]Memory Leak Fix:[/b] Lock dictionaries now have periodic cleanup (every 15 seconds) to remove expired entries, preventing unbounded growth during long multiplayer sessions
-[*][b]Coroutine Race Condition Fix:[/b] Handshake retry coroutine now uses proper atomic operations to prevent multiple coroutines from starting simultaneously
-[*][b]NetworkPacketObserver Optimization:[/b] Diagnostic packet type detection now only examines first 10 packets per batch (total packet count still tracked accurately)
-[/list]
-
-[b]New Comprehensive Performance Profiler:[/b]
-A diagnostic tool to determine if ProxiCraft is causing performance issues:
-[list]
-[*][b]What it proves:[/b] Definitively shows whether lag/stuttering originates from ProxiCraft. All ProxiCraft Harmony patches are instrumented with microsecond-precision timing - if ProxiCraft is the cause, the report will show exactly which operation and how long it took.
-[*][b]What it measures:[/b] Overall game performance metrics (frame timing, GC pressure, lock contention) that quantify how much lag is occurring - useful for comparing before/after when adding or removing other mods.
-[*][b]What it doesn't do:[/b] Cannot identify which OTHER mod is causing lag if ProxiCraft is ruled out. It's a "is it us?" tool, not a general mod debugger.
-[/list]
-
-[b]Technical Details:[/b]
-[list]
-[*][b]Microsecond Timing:[/b] High-resolution Stopwatch for sub-millisecond accuracy
-[*][b]Frame Timing Tracking:[/b] Detects hitches via GameManager.Update monitoring
-[*][b]Spike Detection:[/b] Auto-logs operations over 16ms (spike) or 50ms (SEVERE)
-[*][b]GC Pressure Monitoring:[/b] Tracks Gen0/Gen1/Gen2 garbage collection events
-[*][b]Percentile Stats:[/b] P50/P95/P99 for identifying outliers
+[*][b]Proof of Innocence:[/b] Shows exactly how much time ProxiCraft takes per frame. If our numbers are low, you can rule us out and look elsewhere.
+[*][b]Health Metrics:[/b] Tracks Frame Hitches, Lock Contention, and GC Pressure. Useful for A/B testing performance between different mod loadouts.
+[*][b]Limitations:[/b] It determines if [i]ProxiCraft[/i] is the problem. It cannot identify which [i]other[/i] mod might be lagging your game.
 [/list]
 
 [b]How to use:[/b]
-Open console (F1) and run:
-[code]
-pc perf on      // Enable profiling (resets data)
-[/code]
-Play normally until you experience lag/rubber-banding, then:
-[code]
-pc perf report  // Detailed multi-section timing report
-[/code]
-The report is also saved to [b]perf_report.txt[/b] in your mod folder:
-[code]7 Days To Die/Mods/ProxiCraft/perf_report.txt[/code]
-If ProxiCraft operations show low times but you still have lag, the problem is elsewhere. You can use the overall metrics to compare performance with different mod combinations.
+1. Console (F1) → [font=courier]pc perf on[/font]
+2. Play until lag occurs.
+3. Console → [font=courier]pc perf report[/font]
+
+Report is saved to: [code]7 Days To Die/Mods/ProxiCraft/perf_report.txt[/code]
+
+[line]
+
+[b]Other Improvements:[/b]
+[list]
+[*][b]Memory Cleanup:[/b] Added periodic cleanup for lock data to prevent memory leaks during long sessions.
+[*][b]Networking:[/b] Fixed a race condition in the client handshake for more reliable connections.
+[*][b]Diagnostics:[/b] Optimized network monitoring to reduce CPU usage.
+[/list]
 
 [b]Installation:[/b]
 [list=1]
-[*]Download ProxiCraft-1.2.11.zip
-[*]Extract to your Mods folder → 7DaysToDie/Mods/ProxiCraft/
-[*]Launch game with [b]EAC disabled[/b] (required for all mods)
+[*][b]Download[/b] and extract to [code]7DaysToDie/Mods/ProxiCraft/[/code]
+[*][b]Launch[/b] with [b]EAC disabled[/b]
 [/list]
-
-[b]Multiplayer:[/b] All players need the same version installed.
+[i]Multiplayer: Server and all clients must update.[/i]

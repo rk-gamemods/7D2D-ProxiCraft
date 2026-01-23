@@ -9,7 +9,7 @@ A PowerShell script to decompile 7 Days to Die game assemblies into readable C# 
 ### Prerequisites
 
 1. **.NET SDK** - Required for the decompiler tool
-   - Download from: https://dotnet.microsoft.com/download
+   - Download from: <https://dotnet.microsoft.com/download>
    - Or via winget: `winget install Microsoft.DotNet.SDK.8`
 
 2. **7 Days to Die** - The game must be installed
@@ -89,14 +89,17 @@ GetItemCount
 ### Troubleshooting
 
 **"Game path not found"**
+
 - Verify your 7D2D installation path
 - Use `-GamePath` parameter with the correct path
 
 **"ILSpyCmd failed to install"**
+
 - Ensure .NET SDK is installed
 - Try manual install: `dotnet tool install -g ilspycmd`
 - Restart your terminal after installation
 
 **"Access denied"**
+
 - Run PowerShell as Administrator
 - Or choose a different output path you have write access to

@@ -41,6 +41,7 @@ For AI assistants or quick reference. Replace `X.Y.Z` with actual version.
 ## Version Numbering
 
 Follow semantic versioning (MAJOR.MINOR.PATCH):
+
 - **PATCH** (1.2.3 → 1.2.4): Bug fixes, config changes, docs
 - **MINOR** (1.2.x → 1.3.0): New features, backwards-compatible
 - **MAJOR** (1.x.x → 2.0.0): Breaking changes
@@ -63,6 +64,7 @@ Update **6 files** with the new version:
 | 6 | `README.md` | Changelog section | Add new version entry at top |
 
 **AssemblyInfo.cs format:**
+
 ```csharp
 [assembly: AssemblyFileVersion("X.Y.Z.0")]
 [assembly: AssemblyInformationalVersion("X.Y.Z")]
@@ -72,6 +74,7 @@ Update **6 files** with the new version:
 ### Step 2: Update Changelogs
 
 **README.md** (Markdown format, add at TOP of Changelog section):
+
 ```markdown
 ### vX.Y.Z - Title
 
@@ -81,6 +84,7 @@ Update **6 files** with the new version:
 ```
 
 **NEXUS_DESCRIPTION.txt** (BBCode format, add BEFORE previous version):
+
 ```
 [b]vX.Y.Z[/b]
 [list]
@@ -92,6 +96,7 @@ Update **6 files** with the new version:
 ### Step 3: Create Release Notes
 
 Copy `RELEASE_TEMPLATE.txt` to `Release_vX.Y.Z.txt` and fill in:
+
 - Replace `X.Y.Z` with version number
 - Add summary line
 - List changes
@@ -129,6 +134,7 @@ dotnet build ProxiCraft.csproj -c Release
 ```
 
 **Verify output:**
+
 - Build succeeds with 0 errors
 - `Release/ProxiCraft-X.Y.Z.zip` is created
 
@@ -152,7 +158,7 @@ git push origin vX.Y.Z
 
 ### Step 6: Upload to Nexus Mods (Manual)
 
-1. Go to https://www.nexusmods.com/7daystodie/mods/9269
+1. Go to <https://www.nexusmods.com/7daystodie/mods/9269>
 2. Click "Manage files" → "Add file"
 3. Upload `Release/ProxiCraft-X.Y.Z.zip`
 4. Set name: `ProxiCraft vX.Y.Z`
@@ -164,8 +170,8 @@ git push origin vX.Y.Z
 
 ### Step 7: Verify
 
-- [ ] GitHub: Commit visible at https://github.com/rk-gamemods/7D2D-ProxiCraft/commits/master
-- [ ] GitHub: Tag visible at https://github.com/rk-gamemods/7D2D-ProxiCraft/tags
+- [ ] GitHub: Commit visible at <https://github.com/rk-gamemods/7D2D-ProxiCraft/commits/master>
+- [ ] GitHub: Tag visible at <https://github.com/rk-gamemods/7D2D-ProxiCraft/tags>
 - [ ] GitHub: Download link works (click README download button)
 - [ ] Nexus: New version shows as main file
 - [ ] Nexus: Download works

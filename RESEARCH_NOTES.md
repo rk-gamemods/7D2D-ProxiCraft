@@ -5,6 +5,7 @@
 **STATUS: ✅ ALL FEATURES WORKING**
 
 The challenge tracker integration is complete. All storage sources work correctly:
+
 - Standard containers (TileEntityComposite, TileEntitySecureLootContainer)
 - Vehicle storage (4x4, motorcycle, gyrocopter, minibike)
 - Drone cargo (EntityDrone.lootContainer)
@@ -29,9 +30,11 @@ The challenge tracker integration is complete. All storage sources work correctl
 ---
 
 ## Problem Statement
+
 Challenge tracker shows incorrect item counts when items are moved between player inventory and storage containers.
 
 ## Root Cause (Confirmed)
+
 When a container is open, the TileEntity.items array is **stale**. The UI maintains a separate buffer (`XUiC_ItemStackGrid.items`) that only syncs back to the TileEntity when the container is closed.
 
 ---
@@ -39,6 +42,7 @@ When a container is open, the TileEntity.items array is **stale**. The UI mainta
 ## Attempted Solutions
 
 ### 1. Skip Open Containers (via lockedTileEntities)
+
 **Date:** 2024-12-26  
 **Result:** ❌ FAILED - Broke all container counting  
 **Reason:** The `lockedTileEntities` dictionary appeared to keep containers marked as "open" even after closing, causing ALL containers to be skipped.  
@@ -46,18 +50,21 @@ When a container is open, the TileEntity.items array is **stale**. The UI mainta
 **Log Evidence:** `Skipping OPEN container at 947, 61, 812` even when container was closed
 
 ### 2. Force Cache Refresh Every Call
+
 **Date:** 2024-12-26  
 **Result:** ❌ FAILED - Still stale data  
 **Reason:** Cache refresh doesn't help because TileEntity.items itself is stale, not our cache of references to it.  
 **Code Location:** `ContainerManager.GetItemCount()` - added `_forceCacheRefresh = true`
 
 ### 3. Direct TileEntity Scan (No Caching)
+
 **Date:** 2024-12-26  
 **Result:** ❌ FAILED - Still stale data  
 **Reason:** Same as #2 - we're reading from the stale source regardless of whether we cache or not.  
 **Code Location:** Rewrote `GetItemCount()` to scan chunks directly
 
 ### 4. Delayed Refresh Timer (50ms)
+
 **Date:** 2024-12-26  
 **Result:** ❌ FAILED - Data still stale after delay  
 **Reason:** The TileEntity.items doesn't sync until container closes. No amount of waiting helps.  
@@ -83,6 +90,7 @@ When a container is open, the TileEntity.items array is **stale**. The UI mainta
 ## Current Approach: One Source of Truth
 
 **Strategy:** For each container, read from the authoritative source:
+
 - Container CLOSED → Read TileEntity.items
 - Container OPEN → Read from xui.lootContainer.items (same backing store, but via UI reference)
 
@@ -102,7 +110,7 @@ Output: `7D2DMods\7D2DCodebase\Assembly-CSharp\` (4237 .cs files)
    - `TEFeatureStorage.OnBlockActivated("Search")` is called
    - Calls `TELockServer(0, blockPos, entityId, playerId, "container")`
    - Should trigger `GameManager.OpenTileEntityUi()` with `_customUi = "container"`
-   - Which calls `lootContainerOpened()` 
+   - Which calls `lootContainerOpened()`
    - Which opens `windowManager.Open("looting")`
 
 5. **BUT** our diagnostic logs show `looting=False` even when container is open!
@@ -119,66 +127,82 @@ Output: `7D2DMods\7D2DCodebase\Assembly-CSharp\` (4237 .cs files)
 **Test Scenario:** Container open with 4 stones in slot 37. Shift+click stones to inventory.
 
 **Log Evidence:**
+
 ```
 [10:33:16.890] [COUNT] TEFeatureStorage slots: [37]=4xresourceRockSmall
 ```
+
 Even AFTER shift+click moved stones to inventory, `items[]` still shows 4 stones!
 
 **Root Cause Identified:**
-- `TEFeatureStorage.UpdateSlot()` does `items[_idx] = _item.Clone()` 
+
+- `TEFeatureStorage.UpdateSlot()` does `items[_idx] = _item.Clone()`
 - But the `items[]` array is updated AFTER the count is read
 - The UI's `itemControllers[i].ItemStack` is updated IMMEDIATELY
 - Reading from `items[]` = stale data
 - Reading from `itemControllers[i].ItemStack` = live data
 
 ### 5. Read UI itemControllers Directly (Fix #5)
+
 **Date:** 2024-12-27  
 **Result:** ❌ FAILED - UI lookup not working  
 **Approach:** Instead of reading `ITileEntityLootable.items[]`, read from `XUiC_LootContainer.itemControllers[i].ItemStack`
 **Code Change:** `ContainerManager.GetOpenContainerItemCount()` now:
+
 1. Gets `XUiC_LootContainer` via `xui.FindWindowGroupByName(XUiC_LootWindowGroup.ID).GetChildByType<XUiC_LootContainer>()`
 2. Gets `itemControllers` field via reflection
 3. Reads each `itemControllers[i].ItemStack` for LIVE UI data
 4. Falls back to `items[]` only if UI read fails
 
 **Log Evidence (10:38:36):**
+
 ```
 [FALLBACK] Player has locked TileEntity, UI read failed - using items[] (may be stale!)
 [COUNT] TEFeatureStorage slots: [3]=4xresourceRockSmall ...
 ```
+
 The code is ALWAYS hitting the fallback path. Either `FindWindowGroupByName` returns null, or `GetChildByType<XUiC_LootContainer>` returns null, or `localTileEntity` is null.
 
 **Next Step:** Added diagnostic logging to show exactly which step fails:
+
 - `[UI-PATH] lootWindowGroup={true/false}, ID={...}`
 - `[UI-PATH] lootContainerUI={true/false}`
 
 ### 5b. Added UI Path Diagnostics
+
 **Date:** 2024-12-27  
 **Result:** ❌ CONFIRMED - FindWindowGroupByName("looting") returns null!
 **Log Evidence (10:42:38):**
+
 ```
 [UI-PATH] lootWindowGroup=False, ID=looting
 ```
+
 The "looting" window group is NOT being found even though the container UI is visible!
 
-**Analysis:** 
+**Analysis:**
+
 - Container IS visually open (you can move items)
 - TileEntity IS locked by player (lockedTileEntities has it)
 - But `xui.FindWindowGroupByName("looting")` returns null
 - This means the "looting" window group isn't registered or has different ID
 
 ### 5c. Multiple UI Lookup Methods
+
 **Date:** 2024-12-27  
 **Result:** ❌ FAILED - ALL three methods return null!
 **Log Evidence (10:46:09):**
+
 ```
 [UI-PATH] FindWindowGroupByName('looting')=False
 [UI-PATH] GetChildByType<XUiC_LootWindowGroup>=False
 [UI-PATH] windowManager.GetWindow('looting')=False
 ```
+
 Even `windowManager.GetWindow("looting")` returns null - the window is NOT registered!
 
 **Analysis:** This is very strange because:
+
 - The container UI IS visually open
 - GameManager.lootContainerOpened() calls `windowManager.Open("looting")`
 - But the window doesn't exist in the window manager
@@ -186,9 +210,11 @@ Even `windowManager.GetWindow("looting")` returns null - the window is NOT regis
 **Hypothesis:** Maybe there's another mod overriding the UI, or player storage containers use a completely different window type
 
 ### 5d. Enumerate All Open Windows
+
 **Date:** 2024-12-27  
 **Result:** ❌ MAJOR DISCOVERY - No container window showing!
 **Log Evidence (10:55:27):**
+
 ```
 [BROAD-SCAN] Showing windows: toolTip saveIndicator CalloutGroup
 [BROAD-SCAN] Player has locked: TileEntityComposite
@@ -196,6 +222,7 @@ Even `windowManager.GetWindow("looting")` returns null - the window is NOT regis
 ```
 
 **CRITICAL FINDING:** When the container UI is visible on screen:
+
 - The TileEntity IS locked by the player ✓
 - But NO window with `isShowing=true` contains an item grid!
 - Only `toolTip`, `saveIndicator`, `CalloutGroup` are showing
@@ -204,14 +231,17 @@ Even `windowManager.GetWindow("looting")` returns null - the window is NOT regis
 This is VERY strange - the container UI is visible but not tracked as a "showing" window.
 
 ### 5e. Scan ALL Windows (Not Just Showing)
+
 **Date:** 2024-12-27  
 **Result:** ❌ FAILED - xui.WindowGroups only contains MENU windows!
 **Log Evidence (11:xx:xx):**
+
 ```
 [BROAD-SCAN] ALL windows: toolTip(SHOW) saveIndicator(SHOW) exitingGame(hide) customCharacterSystem(hide) optionsMenu(hide) ...
 ```
 
 **CRITICAL DISCOVERY:** `xui.WindowGroups` contains ONLY menu windows:
+
 - `toolTip`, `saveIndicator`, `exitingGame`, `optionsMenu`, `keyBindings`, etc.
 - NO in-game windows like "looting", "backpack", "crafting" exist in this list!
 - The in-game UI uses a completely different system than the menu UI
@@ -221,11 +251,13 @@ This is VERY strange - the container UI is visible but not tracked as a "showing
 ---
 
 ### 6. LocalPlayerUI.activeItemStackGrids (Fix #6)
+
 **Date:** 2024-12-27  
 **Result:** ❌ FAILED - activeItemStackGrids is EMPTY when container is open!
 **Approach:** Use `LocalPlayerUI.activeItemStackGrids` instead of `xui.WindowGroups`
 
 **Log Evidence:**
+
 ```
 ActiveGrids: EMPTY
 ```
@@ -235,11 +267,13 @@ Even with container visually open, the activeItemStackGrids list is empty.
 ---
 
 ### 7. Comprehensive 7-Source Scan (Fix #7)
+
 **Date:** 2024-12-27  
 **Result:** ❌ FAILED - ALL UI access methods return null/empty
 **Approach:** Scan every possible source for open container items
 
 **Sources Checked:**
+
 1. `player.bag.GetSlots()` - Player backpack ✓ Works
 2. `player.inventory.GetSlots()` - Player toolbelt ✓ Works  
 3. `xui.lootContainer.items[]` - NULL
@@ -249,6 +283,7 @@ Even with container visually open, the activeItemStackGrids list is empty.
 7. `xui.PlayerInventory.GetItemCount()` - Only counts backpack+toolbelt
 
 **Log Evidence:**
+
 ```
 xui.lootContainer: NULL
 LockedTE.items[]: 0 at 947, 61, 812 (TileEntityComposite)
@@ -261,12 +296,14 @@ ActiveGrids: EMPTY
 ---
 
 ### 8. Event-Based Recount (Fix #8)
+
 **Date:** 2024-12-27  
 **Result:** ✅ PARTIAL SUCCESS - Shift+click from container→inventory now works!
 **Approach:** Don't try to READ container data - instead TRIGGER a recount when containers change
 
-**Key Insight:** 
+**Key Insight:**
 The problem isn't that we can't count items - vanilla counts correctly! The issue is:
+
 - Challenges listen to `OnBackpackItemsChangedInternal` and `OnToolbeltItemsChangedInternal`
 - Container changes DON'T fire these events
 - So challenges don't recount when items move to/from containers
@@ -274,6 +311,7 @@ The problem isn't that we can't count items - vanilla counts correctly! The issu
 **Solution:** Patch `XUiC_LootContainer.HandleLootSlotChangedEvent` to fire `OnBackpackItemsChangedInternal` after container slot changes. This triggers all challenge objectives to recount.
 
 **Code Added:** `ProxiCraft.cs`
+
 ```csharp
 [HarmonyPatch(typeof(XUiC_LootContainer), "HandleLootSlotChangedEvent")]
 private static class LootContainer_SlotChanged_Patch
@@ -290,11 +328,13 @@ private static class LootContainer_SlotChanged_Patch
 ```
 
 **Test Results:**
+
 - ✅ Shift+click from storage → inventory: COUNT NOW UPDATES CORRECTLY!
 - ❌ Split stack in inventory, place half in storage: Count shows only inventory portion
 
 **Remaining Issue Analysis:**
 When placing items INTO container:
+
 1. Items leave cursor (not backpack) → go into container
 2. Our patch fires backpack event → challenge recounts backpack (unchanged)
 3. Our StatusText tries to add container count, but can't access open container data
@@ -303,17 +343,20 @@ When placing items INTO container:
 ---
 
 ### 8b. Cached Open Container Reference (Fix #8b)
+
 **Date:** 2024-12-27  
 **Result:** ❌ FAILED - Manual drag still not triggering recount
 **Approach:** Cache the open container's `localTileEntity` reference so our counting code can access live data
 
 **Test Results:**
+
 - ✅ Shift+click storage → inventory: Works
 - ✅ Shift+click inventory → storage: Works  
 - ❌ Manual drag inventory → storage: Count stays at 2
 
 **Analysis:**
 Shift+click uses different code path than manual drag. Manual drag uses `SwapItem()` which:
+
 1. Calls `HandleSlotChangeEvent()` on SOURCE slot (backpack)
 2. Then calls `childByType2?.SetSlots()` to refresh container UI
 3. Our `HandleLootSlotChangedEvent` patch is NOT triggered for manual drag!
@@ -321,6 +364,7 @@ Shift+click uses different code path than manual drag. Manual drag uses `SwapIte
 ---
 
 ### 8c. Patch XUiC_ItemStack.HandleSlotChangeEvent (Fix #8c)
+
 **Date:** 2024-12-27  
 **Result:** ❌ FAILED - Caused infinite item duplication glitch!
 **Approach:** Patch the universal slot change handler to fire `OnBackpackItemsChangedInternal`
@@ -330,11 +374,13 @@ Shift+click uses different code path than manual drag. Manual drag uses `SwapIte
 ---
 
 ### 8d. Use DragAndDropItemChanged Event (Fix #8d) - CURRENT
+
 **Date:** 2024-12-27  
 **Result:** ✅ PARTIAL SUCCESS
 **Approach:** Fire `DragAndDropItemChanged` instead of `OnBackpackItemsChangedInternal`
 
 **Key Insight from ChallengeObjectiveGather.HandleAddHooks():**
+
 ```csharp
 playerInventory.Backpack.OnBackpackItemsChangedInternal += ItemsChangedInternal;
 playerInventory.Toolbelt.OnToolbeltItemsChangedInternal += ItemsChangedInternal;
@@ -342,10 +388,12 @@ player.DragAndDropItemChanged += ItemsChangedInternal;  // <-- Challenges ALREAD
 ```
 
 **Implementation:**
+
 1. `LootContainer_SlotChanged_Patch` - Fire `DragAndDropItemChanged` when container slot changes (Postfix)
 2. `ItemStack_SlotChanged_Patch` - Fire `DragAndDropItemChanged` for backpack/toolbelt changes when container open (skip LootContainer slots to avoid double-fire)
 
 **Test Results:**
+
 - ✅ No item duplication (DragAndDropItemChanged is safe)
 - ✅ Shift+click from storage → inventory: Works
 - ✅ Shift+click from inventory → storage: Works
@@ -361,17 +409,20 @@ Need to also trigger recount when items are PICKED UP from container slots.
 ---
 
 ### 8e. Set Current Field in HandleUpdatingCurrent (Fix #8e) - FINAL SOLUTION
+
 **Date:** 2024-12-27  
 **Result:** ✅ SUCCESS - ALL SCENARIOS WORKING!
 **Approach:** Actually SET the `Current` field to include container count
 
 **Key Discovery from Logs:**
 The counting was working correctly (`containers=4, total=4`) but the UI wasn't updating because:
+
 1. Vanilla `HandleUpdatingCurrent` sets `base.Current = inventoryCount` (backpack+toolbelt only)
 2. Our patch ran AFTER but only LOGGED - didn't modify the field
 3. The `Current` field drives the UI display
 
 **Fix:** In `HandleUpdatingCurrent_Patch.Postfix()`, SET the `current` field:
+
 ```csharp
 if (containerCount > 0 && currentField != null && displayCount != inventoryCount)
 {
@@ -380,11 +431,13 @@ if (containerCount > 0 && currentField != null && displayCount != inventoryCount
 ```
 
 **Why This Is Safe:**
+
 - Previous duplication bug was caused by firing `OnBackpackItemsChangedInternal` during transfers
 - Now we use `DragAndDropItemChanged` which doesn't interfere with item transfers
 - Modifying the `Current` field only affects DISPLAY, not actual item movement
 
 **Final Working Solution Components:**
+
 1. `LootContainer_OnOpen_Patch` - Cache container reference when opened
 2. `LootContainer_OnClose_Patch` - Clear cache when closed
 3. `LootContainer_SlotChanged_Patch` - Fire `DragAndDropItemChanged` when items placed in container
@@ -423,6 +476,7 @@ LocalPlayerUI.primaryUI
 ```
 
 ### Classes Documented
+
 - `XUiC_LootContainer` - Grid controller, sets xui.lootContainer in OnOpen()
 - `XUiC_LootWindowGroup` - Window group, has `te` field for ITileEntityLootable
 - `XUiC_LootWindow` - Window wrapper
@@ -444,10 +498,12 @@ LocalPlayerUI.primaryUI
 ---
 
 ## Files Modified
+
 - `ProxiCraft/ContainerManager.cs` - Container scanning and counting
 - `ProxiCraft/ProxiCraft.cs` - Harmony patches for challenge system
 
 ## Useful Log Patterns
+
 ```
 GetItemCount: Container at X, Y, Z has N itemName
 StatusText_Patch: Item=X, actualInv=Y, containers=Z, totalPossession=W
@@ -459,33 +515,40 @@ CheckComplete_Patch: Item=X, actualInv=Y, containers=Z
 ## v1.2.0 Bug Fixes - January 2025
 
 ### Bug #1: Radial Menu Reload - Ammo Greyed Out
+
 **Reported by:** falkon311 (Nexus Mods)  
 **Symptom:** Radial menu reload option greyed out when ammo only in nearby containers  
 **Root Cause:** Two issues:
+
 1. `ItemActionRanged.CanReload()` wasn't patched - only `ItemActionLauncher.CanReload()` was
 2. Radial menu uses `GetItemCount(int itemId)` overload, but we only patched `GetItemCount(string itemName)`
 
 **Fix:**
+
 1. Added `ItemActionRanged_CanReload_Patch` - postfix that returns true if containers have ammo
 2. Added `GetItemCount(int)` overload in `ContainerManager` that delegates to `GetItemCount(string)`
 3. Added `XUiM_PlayerInventory_GetItemCountById_Patch` for the int-based overload
 
 ### Bug #2: Block Upgrades Not Consuming Materials
+
 **Reported by:** falkon311 (Nexus Mods)  
 **Symptom:** Block upgrades showed materials available but didn't consume them from containers  
 **Root Cause:** `ItemActionRepair.removeRequiredResource()` only removes from backpack/toolbelt
 
 **Fix:**
+
 1. Added `ItemActionRepair_RemoveRequiredResource_Patch` - prefix that removes from containers first
 2. Uses `ContainerManager.RemoveItems()` with the required count
 3. Returns `false` to skip vanilla removal if container had enough
 
 ### Bug #3: Workstation Output "Free Crafting" Exploit
+
 **Reported by:** Kaizlin (Nexus Mods)  
 **Symptom:** Items in workstation output slots counted as available but never consumed - infinite crafting  
 **Root Cause:** Workstation UI maintains its own copy of slots. When `syncTEfromUI()` runs on close, it OVERWRITES the TileEntity with UI data. Our removal from TileEntity.items was being overwritten.
 
 **Fix:**
+
 1. Added `RemoveFromWorkstationOutputUI()` method that modifies both:
    - The UI slot (`XUiC_ItemStackGrid.itemControllers[].ItemStack`)
    - The TileEntity (`workstation.Output[slot]`)
@@ -496,16 +559,19 @@ CheckComplete_Patch: Item=X, actualInv=Y, containers=Z
 **Key Lesson:** Workstation UIs have a dual-buffer architecture. Reading from TileEntity works, but WRITING must go to BOTH the UI and the TileEntity or changes get lost on close.
 
 ### Bug #4: "Take Like" Button Taking All Items
+
 **Reported by:** Kaizlin (Nexus Mods)  
 **Symptom:** "Take Like" button (take all matching items from container) was taking ALL items  
 **Root Cause:** `ItemStack.HasItem()` was patched to return true if containers have the item, but "Take Like" uses this to filter items
 
 **Fix:**
+
 1. Added `HasItem_Patch` - prefix that detects when called from `TakeItemLike_OnPress`
 2. Uses stack trace detection to identify the calling context
 3. Returns vanilla behavior (inventory-only check) when called from "Take Like"
 
 **Implementation Details:**
+
 ```csharp
 [HarmonyPatch(typeof(ItemStack), "HasItem")]
 private static class HasItem_Patch
@@ -533,25 +599,33 @@ private static class HasItem_Patch
 ## Technical Lessons from v1.2.0
 
 ### 1. UI vs TileEntity Dual-Buffer Pattern
+
 Workstations (and likely other UIs) maintain their own copy of slot data:
+
 - **Read path:** TileEntity.items → Safe to read for counting
 - **Write path:** Must modify BOTH UI slots AND TileEntity slots
 - **Sync timing:** UI overwrites TileEntity on window close
 
 ### 2. Method Overload Coverage
+
 When patching inventory methods, check for ALL overloads:
+
 - `GetItemCount(string itemName)` - Used by crafting UI
 - `GetItemCount(int itemId)` - Used by radial menu, some game systems
 - `GetItemCount(ItemValue itemValue)` - Used by other systems
 
 ### 3. Context-Aware Patching
+
 Sometimes you need to behave differently based on who's calling:
+
 - Stack trace inspection for call context detection
 - `__state` parameter for prefix→postfix data passing
 - Caching caller info in thread-local storage
 
 ### 4. Repair Actions Need Removal Patches
+
 `ItemActionRepair.removeRequiredResource()` handles material consumption for:
+
 - Block repairs
 - Block upgrades
 - Potentially other repair-like actions

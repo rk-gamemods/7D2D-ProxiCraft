@@ -22,20 +22,25 @@ public bool IsTracking;               // Whether objective is actively tracked
 ```
 
 #### StatusText Property
+
 ```csharp
 public virtual string StatusText => $"{current}/{MaxCount}";
 ```
+
 - Returns the "X/Y" format displayed in the UI
 - **To modify display:** Override or patch this property's getter
 
 #### FillAmount Property
+
 ```csharp
 public virtual float FillAmount => (float)current / (float)MaxCount;
 ```
+
 - Used for progress bar fill (0.0 to 1.0)
 - Capped at 1.0 when current >= MaxCount
 
 #### CheckObjectiveComplete Method
+
 ```csharp
 public virtual bool CheckObjectiveComplete(bool handleComplete = true)
 {
@@ -61,6 +66,7 @@ public virtual bool CheckObjectiveComplete(bool handleComplete = true)
 **Location:** `Challenges.ChallengeObjectiveGather`
 
 #### Key Fields
+
 ```csharp
 // Inherited from ChallengeBaseTrackedItemObjective:
 protected ItemValue expectedItem;          // The item being tracked
@@ -71,6 +77,7 @@ protected string itemClassID;              // Item name/ID string
 #### How Item Tracking Works
 
 1. **Hooks into inventory changes:**
+
 ```csharp
 public override void HandleAddHooks()
 {
@@ -82,7 +89,8 @@ public override void HandleAddHooks()
 }
 ```
 
-2. **HandleUpdatingCurrent - THE KEY METHOD:**
+1. **HandleUpdatingCurrent - THE KEY METHOD:**
+
 ```csharp
 protected override void HandleUpdatingCurrent()
 {
@@ -102,11 +110,13 @@ protected override void HandleUpdatingCurrent()
 ```
 
 **⚠️ CRITICAL FINDING:**
+
 - This method directly queries `Backpack.GetItemCount()` and `Toolbelt.GetItemCount()`
 - It does NOT use `XUiM_PlayerInventory.GetItemCount()` which ProxiCraft patches
 - **To include container items:** Must patch `Bag.GetItemCount()` or `Inventory.GetItemCount()` directly, OR patch `HandleUpdatingCurrent`
 
-3. **CheckForNeededItem - Completion Check:**
+1. **CheckForNeededItem - Completion Check:**
+
 ```csharp
 private bool CheckForNeededItem()
 {
@@ -139,6 +149,7 @@ case "iconcolor":
 ```
 
 **`ReadyToComplete` Property (from Challenge class):**
+
 ```csharp
 public bool ReadyToComplete
 {
@@ -269,6 +280,7 @@ public virtual int GetItemCount(ItemValue _itemValue, bool _bConsiderTexture = f
 ```
 
 **Parameters explained:**
+
 - `_ignoreModdedItems`: If true, skip items with mods installed (default)
 - `_bConsiderTexture`: Match texture array exactly
 - `_seed`, `_meta`: Match specific item variants
@@ -391,7 +403,8 @@ private bool hasItems(XUi _xui, Recipe _recipe)
 }
 ```
 
-4. On craft, removes items:
+1. On craft, removes items:
+
 ```csharp
 if (childByType != null)
 {
@@ -428,6 +441,7 @@ private void BuildRecipeInfosList(List<ItemStack> _items)
 ```
 
 **The `_items` list comes from:**
+
 ```csharp
 list.AddRange(base.xui.PlayerInventory.GetBackpackItemStacks());
 list.AddRange(base.xui.PlayerInventory.GetToolbeltItemStacks());
@@ -535,6 +549,7 @@ private int GetAmmoCountToReload(EntityAlive ea, ItemValue ammo, int modifiedMag
 ```
 
 **⚠️ CRITICAL:**
+
 - Uses `ea.bag.GetItemCount()` and `ea.inventory.GetItemCount()` DIRECTLY
 - Calls `DecItem` inline during reload - removal happens HERE
 - **To support containers:** Must patch BOTH count check AND DecItem calls
@@ -693,17 +708,17 @@ case "iconcolor":
 2. **Crafting `hasItems`** - calls `GetAllItemStacks()` then `HasItems()`
    - If you add items to `GetAllItemStacks()` AND modify `HasItems()`, double-count
 
-3. **Ingredient display** - calls `XUiM_PlayerInventory.GetItemCount()` 
+3. **Ingredient display** - calls `XUiM_PlayerInventory.GetItemCount()`
    - If you patch both the method AND inject into binding value, double-count
 
 ### Safe Patching Strategy
 
 1. **Choose ONE injection point per operation:**
    - For item counts: Patch `XUiM_PlayerInventory.GetItemCount()` OR the specific `Bag/Inventory.GetItemCount()`, not both
-   
+
 2. **For recipe availability:** Patch `BuildRecipeInfosList` to modify the `_items` list BEFORE processing
-   
-3. **For challenges:** 
+
+3. **For challenges:**
    - Option A: Patch `Bag.GetItemCount` and `Inventory.GetItemCount` (affects EVERYTHING)
    - Option B: Patch `HandleUpdatingCurrent` and `CheckForNeededItem` in `ChallengeObjectiveGather` specifically
    - Option C: Patch `StatusText` getter and `CheckObjectiveComplete` (display only, no logic changes)
@@ -767,9 +782,11 @@ case "iconcolor":
 ## 12. Challenge Objectives - SOLVED (Fix #8e)
 
 ### Problem (Resolved)
+
 Challenge objectives for gathering items (like "Gather 10 Wood") weren't counting container items.
 
 ### Root Cause (Identified)
+
 `ChallengeObjectiveGather.HandleUpdatingCurrent()` directly calls `Backpack.GetItemCount()` and `Toolbelt.GetItemCount()`, bypassing our `XUiM_PlayerInventory` patches.
 
 ### Solution Implemented (v2.0)
