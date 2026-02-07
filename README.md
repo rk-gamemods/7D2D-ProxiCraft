@@ -4,7 +4,7 @@ A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs usin
 
 **[Nexus Mods](https://www.nexusmods.com/7daystodie/mods/9269)** • **[GitHub](https://github.com/rk-gamemods/7D2D-ProxiCraft)**
 
-## ⬇️ [Download ProxiCraft-1.2.11.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.11.zip)
+## ⬇️ [Download ProxiCraft-1.2.12.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.12.zip)
 
 ---
 
@@ -115,7 +115,7 @@ Debug logging cannot be enabled remotely by a server - each player controls thei
 ### Single-Player
 
 1. Download the zip using the link above
-2. Extract to `7 Days To Die/Mods/ProxiCraft/`
+2. Extract the zip into your Mods folder
 3. Launch game with EAC disabled
 
 ### Multiplayer
@@ -470,6 +470,13 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 ---
 
 ## Changelog
+
+### v1.2.12 - Block Upgrade Bug Fix
+
+**Fixed:**
+
+- **Fixed double material consumption during block upgrades** — When upgrade materials were split between player inventory and nearby containers, the game would consume items twice (vanilla removed some from inventory, then ProxiCraft removed the full amount again from containers). Now correctly accounts for what vanilla already consumed.
+- **Fixed "r" shorthand in upgrade item resolution** — Blocks using the vanilla `"r"` shorthand for `UpgradeBlock.Item` (which means "use the same material as repairs") were not resolved correctly, potentially breaking upgrades on modded blocks using this pattern.
 
 ### v1.2.11 - Critical Multiplayer Crash Fix & Performance Diagnostics
 

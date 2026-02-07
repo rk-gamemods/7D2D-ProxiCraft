@@ -5,7 +5,7 @@
 This document summarizes the comprehensive rewrite that resulted in the ProxiCraft mod for 7 Days to Die, transforming a functional but fragile single-file implementation into a robust, maintainable, and highly compatible modular codebase with **new features** not present in any prior version.
 
 **Inspired By:** CraftFromContainers community lineage (llmonmonll → aedenthorn → SYN0N1M → others)
-**This Version:** 1.2.11
+**This Version:** 1.2.12
 **Date:** December 2024
 **Repository:** [github.com/rk-gamemods/7D2D-ProxiCraft](https://github.com/rk-gamemods/7D2D-ProxiCraft)
 
@@ -214,7 +214,7 @@ New `pc` command for runtime diagnostics:
 
 ```text
 === ProxiCraft Diagnostic Report ===
-Mod Version: 1.2.11
+Mod Version: 1.2.12
 Game Version: V2.5 (b32)
 Config Enabled: True
 

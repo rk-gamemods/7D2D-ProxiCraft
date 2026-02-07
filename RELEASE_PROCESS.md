@@ -117,8 +117,8 @@ Copy `RELEASE_TEMPLATE.txt` to `Release_vX.Y.Z.txt` and fill in:
 [b]Installation:[/b]
 [list=1]
 [*]Download ProxiCraft-X.Y.Z.zip
-[*]Extract to your Mods folder → 7DaysToDie/Mods/ProxiCraft/
-[*]Launch game with [b]EAC disabled[/b] (required for all mods)
+[*]Extract the zip into your Mods folder
+[*]Launch game with [b]EAC disabled[/b]
 [/list]
 
 [b]Multiplayer:[/b] All players need the same version installed.
@@ -189,4 +189,4 @@ git push origin vX.Y.Z
 
 ---
 
-**Last Updated**: January 27, 2026 (v1.2.11 release)
+**Last Updated**: February 6, 2026 (v1.2.12 release)

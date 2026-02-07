@@ -127,8 +127,8 @@ Your reports help make multiplayer stable for everyone!
 [size=4][b]Installation[/b][/size]
 
 [list=1]
-[*]Download and extract the zip
-[*]Copy [b]ProxiCraft[/b] folder to [b]7 Days To Die/Mods/[/b]
+[*]Download the zip
+[*]Extract the zip into your Mods folder
 [*]Launch game with EAC disabled
 [/list]
 
@@ -372,6 +372,12 @@ Use only ONE mod of this type.
 [line]
 
 [size=4][b]Changelog[/b][/size]
+
+[b]v1.2.12 - Block Upgrade Bug Fix[/b]
+[list]
+[*][b]Fixed double material consumption during block upgrades[/b] - When upgrade materials were split between player inventory and nearby containers, the game would consume items twice. Now correctly accounts for what vanilla already consumed.
+[*][b]Fixed "r" shorthand in upgrade item resolution[/b] - Blocks using the vanilla "r" shorthand for UpgradeBlock.Item were not resolved correctly, potentially breaking upgrades on modded blocks using this pattern.
+[/list]
 
 [b]v1.2.11 - Critical Multiplayer Crash Fix & Performance Diagnostics[/b]
 [color=#ff0000][b]🚨 CRITICAL FIX:[/b][/color]

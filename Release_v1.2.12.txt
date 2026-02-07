@@ -1,0 +1,20 @@
+[size=4][b]ProxiCraft v1.2.12[/b][/size]
+
+Bug fix release for block upgrade material consumption.
+
+[b]Bug Fixes:[/b]
+[list]
+[*][b]Fixed double material consumption during block upgrades[/b] - When upgrade materials were split between player inventory and nearby containers, the game would consume items twice. Now correctly accounts for what vanilla already consumed.
+[*][b]Fixed "r" shorthand in upgrade item resolution[/b] - Blocks using the vanilla "r" shorthand for UpgradeBlock.Item were not resolved correctly, potentially breaking upgrades on modded blocks using this pattern.
+[/list]
+
+[b]Installation:[/b]
+[list=1]
+[*]Download ProxiCraft-1.2.12.zip
+[*]Extract the zip into your Mods folder
+[*]Launch game with [b]EAC disabled[/b]
+[/list]
+
+[b]Multiplayer:[/b] All players need the same version installed.
+
+[b]Bug Reports:[/b] Comment on this mod page with pc_debug.log from your ProxiCraft folder.
