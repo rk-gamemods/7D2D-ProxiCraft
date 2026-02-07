@@ -114,7 +114,13 @@ ProxiCraft is a 7 Days to Die mod that allows players to use items from nearby s
     │   ├── PerformanceProfiler.cs   # Timing and cache statistics
     │   ├── ModCompatibility.cs   # Conflict detection with other mods
     │   ├── AdaptivePatching.cs   # Compatibility helpers
-    │   └── NetPackagePCLock.cs   # Multiplayer lock sync
+    │   ├── NetPackagePCLock.cs   # Multiplayer lock sync
+    │   ├── VirtualInventoryProvider.cs # Central inventory hub (MP-safe)
+    │   ├── MultiplayerModTracker.cs   # MP handshake and safety
+    │   ├── FlightRecorder.cs     # Diagnostic flight recorder
+    │   ├── NetworkDiagnostics.cs  # Network latency diagnostics
+    │   ├── StoragePriority.cs    # Storage priority ordering
+    │   └── ModPath.cs            # Mod path resolution
     ├── Properties/
     │   └── AssemblyInfo.cs
     ├── Release/                  # DISTRIBUTION FOLDER
