@@ -818,6 +818,42 @@ public class ProxiCraft : IModApi
 
     #endregion
 
+    /// <summary>
+    /// Fires the DragAndDropItemChanged event on the local player to trigger challenge recounts.
+    /// Challenges already listen to this event, so firing it causes the game to recount items.
+    /// The FieldInfo is cached to avoid repeated reflection lookups.
+    /// </summary>
+    private static FieldInfo _dragAndDropEventField;
+    private static bool _dragAndDropFieldResolved;
+
+    private static void FireDragAndDropItemChanged(string source)
+    {
+        try
+        {
+            var player = GameManager.Instance?.World?.GetPrimaryPlayer();
+            if (player == null)
+                return;
+
+            if (!_dragAndDropFieldResolved)
+            {
+                _dragAndDropEventField = typeof(EntityPlayerLocal).GetField("DragAndDropItemChanged",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                _dragAndDropFieldResolved = true;
+            }
+
+            if (_dragAndDropEventField != null)
+            {
+                var eventDelegate = _dragAndDropEventField.GetValue(player) as Delegate;
+                eventDelegate?.DynamicInvoke();
+                FileLog($"[RECOUNT] Fired DragAndDropItemChanged from {source}");
+            }
+        }
+        catch (Exception ex)
+        {
+            FileLog($"FireDragAndDropItemChanged ({source}): Exception: {ex.Message}");
+        }
+    }
+
     #region Harmony Patches - Game Events
     
     /// <summary>
@@ -2675,27 +2711,7 @@ public class ProxiCraft : IModApi
             if (Config?.modEnabled != true || Config?.enableForQuests != true)
                 return;
 
-            try
-            {
-                var player = GameManager.Instance?.World?.GetPrimaryPlayer();
-                if (player == null)
-                    return;
-
-                // Fire DragAndDropItemChanged - challenges listen to this
-                var eventField = typeof(EntityPlayerLocal).GetField("DragAndDropItemChanged",
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-
-                if (eventField != null)
-                {
-                    var eventDelegate = eventField.GetValue(player) as Delegate;
-                    eventDelegate?.DynamicInvoke();
-                    FileLog("[RECOUNT] Fired DragAndDropItemChanged from container slot change");
-                }
-            }
-            catch (Exception ex)
-            {
-                FileLog($"LootContainer_SlotChanged_Patch: Exception: {ex.Message}");
-            }
+            FireDragAndDropItemChanged("container slot change");
         }
     }
     
@@ -2726,27 +2742,7 @@ public class ProxiCraft : IModApi
             if (__instance.StackLocation == XUiC_ItemStack.StackLocationTypes.Vehicle)
                 return;
             
-            try
-            {
-                var player = GameManager.Instance?.World?.GetPrimaryPlayer();
-                if (player == null)
-                    return;
-                
-                // Fire DragAndDropItemChanged - challenges listen to this
-                var eventField = typeof(EntityPlayerLocal).GetField("DragAndDropItemChanged",
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                
-                if (eventField != null)
-                {
-                    var eventDelegate = eventField.GetValue(player) as Delegate;
-                    eventDelegate?.DynamicInvoke();
-                    FileLog($"[RECOUNT] Fired DragAndDropItemChanged from {__instance.StackLocation} slot change");
-                }
-            }
-            catch (Exception ex)
-            {
-                FileLog($"ItemStack_SlotChanged_Patch: Exception: {ex.Message}");
-            }
+            FireDragAndDropItemChanged($"{__instance.StackLocation} slot change");
         }
     }
 
@@ -2828,27 +2824,7 @@ public class ProxiCraft : IModApi
             if (Config?.modEnabled != true || Config?.enableForQuests != true)
                 return;
 
-            try
-            {
-                var player = GameManager.Instance?.World?.GetPrimaryPlayer();
-                if (player == null)
-                    return;
-
-                // Fire DragAndDropItemChanged - challenges listen to this
-                var eventField = typeof(EntityPlayerLocal).GetField("DragAndDropItemChanged",
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-
-                if (eventField != null)
-                {
-                    var eventDelegate = eventField.GetValue(player) as Delegate;
-                    eventDelegate?.DynamicInvoke();
-                    FileLog("[RECOUNT] Fired DragAndDropItemChanged from vehicle slot change");
-                }
-            }
-            catch (Exception ex)
-            {
-                FileLog($"VehicleContainer_SlotChanged_Patch: Exception: {ex.Message}");
-            }
+            FireDragAndDropItemChanged("vehicle slot change");
         }
     }
 
@@ -2941,27 +2917,7 @@ public class ProxiCraft : IModApi
             if (Config?.modEnabled != true || Config?.enableForQuests != true)
                 return;
 
-            try
-            {
-                var player = GameManager.Instance?.World?.GetPrimaryPlayer();
-                if (player == null)
-                    return;
-
-                // Fire DragAndDropItemChanged - challenges listen to this
-                var eventField = typeof(EntityPlayerLocal).GetField("DragAndDropItemChanged",
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-
-                if (eventField != null)
-                {
-                    var eventDelegate = eventField.GetValue(player) as Delegate;
-                    eventDelegate?.DynamicInvoke();
-                    FileLog("[RECOUNT] Fired DragAndDropItemChanged from workstation output change");
-                }
-            }
-            catch (Exception ex)
-            {
-                FileLog($"WorkstationOutputGrid_UpdateBackend_Patch: Exception: {ex.Message}");
-            }
+            FireDragAndDropItemChanged("workstation output change");
         }
     }
 
@@ -4072,18 +4028,7 @@ public class ProxiCraft : IModApi
                 // Fire DragAndDropItemChanged to update challenge tracker (only once per debounce window)
                 if (Config?.enableForQuests == true)
                 {
-                    var player = GameManager.Instance?.World?.GetPrimaryPlayer();
-                    if (player != null)
-                    {
-                        var eventField = typeof(EntityPlayerLocal).GetField("DragAndDropItemChanged",
-                            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                        
-                        if (eventField != null)
-                        {
-                            var eventDelegate = eventField.GetValue(player) as Delegate;
-                            eventDelegate?.DynamicInvoke();
-                        }
-                    }
+                    FireDragAndDropItemChanged("slot lock change");
                 }
             }
             catch (Exception ex)
