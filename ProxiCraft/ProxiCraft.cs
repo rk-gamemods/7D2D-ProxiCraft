@@ -2268,19 +2268,8 @@ public class ProxiCraft : IModApi
         }
     }
 
-    // ====================================================================================
-    // TRADER SELLING SUPPORT - REMOVED
-    // ====================================================================================
-    // This feature was removed due to item duplication bugs that could not be fully 
-    // mitigated. See TRADER_SELLING_POSTMORTEM.md for full technical details.
-    //
-    // SUMMARY: We had to replicate ~60% of the game's selling validation logic to
-    // determine if a sale would succeed BEFORE adding items to the player's slot.
-    // Any mismatch between our checks and vanilla's checks caused item duplication.
-    //
-    // The "buy from trader" feature (paying with dukes from containers) remains
-    // functional because it has much simpler failure cases.
-    // ====================================================================================
+    // Trader selling intentionally removed - caused item duplication. See TRADER_SELLING_POSTMORTEM.md.
+    // Buying from trader (paying with dukes from containers) remains functional.
 
     #endregion
 
