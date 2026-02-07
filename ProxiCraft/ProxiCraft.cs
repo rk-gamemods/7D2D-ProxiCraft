@@ -59,7 +59,6 @@ public class ProxiCraft : IModApi
     public const string MOD_VERSION = "1.2.11";
     
     // Static references
-    private static ProxiCraft _instance;
     private static Mod _mod;
     public static ModConfig Config { get; private set; }
     
@@ -74,7 +73,6 @@ public class ProxiCraft : IModApi
     
     public void InitMod(Mod modInstance)
     {
-        _instance = this;
         _mod = modInstance;
         
         // Force log at very start to verify logging works
@@ -653,14 +651,43 @@ public class ProxiCraft : IModApi
             return false;
         }
     }
-    
+
+    /// <summary>
+    /// Gets the upgrade item name from a block, mirroring vanilla's GetUpgradeItemName logic.
+    /// Handles the "r" shorthand which resolves to RepairItems[0].ItemName.
+    /// </summary>
+    private static string GetUpgradeItemName(Block block)
+    {
+        // Check UpgradeBlock.Item property first
+        if (block.Properties.Values.TryGetValue("UpgradeBlock.Item", out string upgradeItem) &&
+            !string.IsNullOrEmpty(upgradeItem))
+        {
+            // Handle "r" shorthand - vanilla resolves this to RepairItems[0].ItemName
+            if (upgradeItem.Length == 1 && upgradeItem[0] == 'r')
+            {
+                if (block.RepairItems != null && block.RepairItems.Count > 0)
+                    return block.RepairItems[0].ItemName;
+                return null;
+            }
+            return upgradeItem;
+        }
+
+        // Fall back to RepairItems if available
+        if (block.RepairItems != null && block.RepairItems.Count > 0)
+        {
+            return block.RepairItems[0].ItemName;
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Adds items from nearby containers to the player's item list.
     /// Used by crafting UI to show available materials.
     /// </summary>
     public static List<ItemStack> AddContainerItems(List<ItemStack> playerItems)
     {
-        if (!Config?.modEnabled == true)
+        if (Config?.modEnabled != true)
             return playerItems;
 
         // Safety check - don't run if game state isn't ready
@@ -700,7 +727,7 @@ public class ProxiCraft : IModApi
     /// </summary>
     public static int GetTotalItemCount(int playerCount, ItemValue item)
     {
-        if (!Config?.modEnabled == true)
+        if (Config?.modEnabled != true)
             return playerCount;
 
         // Safety check - don't run if game state isn't ready
@@ -725,7 +752,7 @@ public class ProxiCraft : IModApi
     /// </summary>
     public static void RemoveRemainingItems(ItemValue item, int remaining)
     {
-        if (!Config?.modEnabled == true || remaining <= 0)
+        if (Config?.modEnabled != true || remaining <= 0)
             return;
 
         // Safety check - don't run if game state isn't ready
@@ -749,7 +776,7 @@ public class ProxiCraft : IModApi
     /// </summary>
     public static void RefreshRecipeTracker()
     {
-        if (!Config?.modEnabled == true || !Config?.enableRecipeTrackerUpdates == true)
+        if (Config?.modEnabled != true || Config?.enableRecipeTrackerUpdates != true)
             return;
 
         try
@@ -784,7 +811,7 @@ public class ProxiCraft : IModApi
     /// </summary>
     public static void MarkHudAmmoDirty()
     {
-        if (!Config?.modEnabled == true || !Config?.enableHudAmmoCounter == true)
+        if (Config?.modEnabled != true || Config?.enableHudAmmoCounter != true)
             return;
 
         try
@@ -896,7 +923,7 @@ public class ProxiCraft : IModApi
             PerformanceProfiler.StartTimer(PerformanceProfiler.OP_PATCH_TELOCK);
             try
             {
-                if (!Config?.modEnabled == true)
+                if (Config?.modEnabled != true)
                     return;
                 // SAFETY (v1.2.9): Skip broadcasts while clients are being verified
                 // Matches pattern in IsGameReady() - was missing here
@@ -947,7 +974,7 @@ public class ProxiCraft : IModApi
             PerformanceProfiler.StartTimer(PerformanceProfiler.OP_PATCH_TEUNLOCK);
             try
             {
-                if (!Config?.modEnabled == true)
+                if (Config?.modEnabled != true)
                     return;
                 // SAFETY (v1.2.9): Skip broadcasts while clients are being verified
                 if (!MultiplayerModTracker.IsModAllowed())
@@ -1140,7 +1167,7 @@ public class ProxiCraft : IModApi
         {
             __state = Vector3i.zero;
             
-            if (!Config?.modEnabled == true)
+            if (Config?.modEnabled != true)
                 return;
 
             try
@@ -1181,7 +1208,7 @@ public class ProxiCraft : IModApi
             if (__state == Vector3i.zero)
                 return;  // No container was found to clear
 
-            if (!Config?.modEnabled == true)
+            if (Config?.modEnabled != true)
                 return;
 
             try
@@ -1269,7 +1296,7 @@ public class ProxiCraft : IModApi
         [HarmonyPrefix]
         public static void BuildRecipeInfosList_Prefix(XUiC_RecipeList __instance, ref List<ItemStack> _items)
         {
-            if (!Config?.modEnabled == true)
+            if (Config?.modEnabled != true)
                 return;
 
             // Safety check - don't run if game state isn't ready
@@ -1409,7 +1436,7 @@ public class ProxiCraft : IModApi
     {
         public static void Postfix(XUiM_PlayerInventory __instance, ref int __result, ItemValue _itemValue)
         {
-            if (!Config?.modEnabled == true || _itemValue == null)
+            if (Config?.modEnabled != true || _itemValue == null)
                 return;
 
             // Safety check - don't run if game state isn't ready
@@ -1465,7 +1492,7 @@ public class ProxiCraft : IModApi
     {
         public static void Postfix(XUiM_PlayerInventory __instance, ref int __result, int _itemId)
         {
-            if (!Config?.modEnabled == true || _itemId <= 0)
+            if (Config?.modEnabled != true || _itemId <= 0)
                 return;
 
             // Safety check - don't run if game state isn't ready
@@ -1556,7 +1583,7 @@ public class ProxiCraft : IModApi
     /// </summary>
     public static int AddIngredientContainerCount(int playerCount, XUiC_IngredientEntry entry)
     {
-        if (!Config?.modEnabled == true || entry?.Ingredient?.itemValue == null)
+        if (Config?.modEnabled != true || entry?.Ingredient?.itemValue == null)
             return playerCount;
 
         // Safety check - don't run if game state isn't ready
@@ -1691,7 +1718,7 @@ public class ProxiCraft : IModApi
         [HarmonyPrefix]
         public static void Prefix(XUiM_PlayerInventory __instance, IList<ItemStack> _itemStacks, int _multiplier)
         {
-            if (!Config?.modEnabled == true)
+            if (Config?.modEnabled != true)
                 return;
 
             // Check if Enhanced Safety is enabled
@@ -1725,7 +1752,7 @@ public class ProxiCraft : IModApi
         [HarmonyPostfix]
         public static void Postfix(XUiM_PlayerInventory __instance)
         {
-            if (!Config?.modEnabled == true || _pendingContainerRemovals == null)
+            if (Config?.modEnabled != true || _pendingContainerRemovals == null)
                 return;
 
             // Safety check - don't run if game state isn't ready
@@ -1849,7 +1876,7 @@ public class ProxiCraft : IModApi
                 return;
 
             // If mod disabled or reload feature disabled, don't override
-            if (!Config?.modEnabled == true || !Config?.enableForReload == true)
+            if (Config?.modEnabled != true || Config?.enableForReload != true)
                 return;
 
             // Safety check
@@ -1924,7 +1951,7 @@ public class ProxiCraft : IModApi
 
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            if (!Config?.enableForReload == true)
+            if (Config?.enableForReload != true)
                 return instructions;
 
             return RobustTranspiler.SafeTranspile(instructions, FEATURE_ID, codes =>
@@ -1981,7 +2008,7 @@ public class ProxiCraft : IModApi
     {
         LogDebug($"AddReloadContainerCount called: inventoryCount={inventoryCount}, ammo={ammoItem?.ItemClass?.GetItemName()}");
         
-        if (!Config?.modEnabled == true || !Config?.enableForReload == true)
+        if (Config?.modEnabled != true || Config?.enableForReload != true)
             return inventoryCount;
 
         if (Config.enhancedSafetyReload)
@@ -2020,7 +2047,7 @@ public class ProxiCraft : IModApi
         int removed = inventory.DecItem(item, count, ignoreModded, removedItems);
         LogDebug($"DecItemForReload: inventory.DecItem returned {removed}");
         
-        if (!Config?.modEnabled == true || !Config?.enableForReload == true)
+        if (Config?.modEnabled != true || Config?.enableForReload != true)
             return removed;
 
         // Safety check - don't access containers if game state isn't ready
@@ -2090,7 +2117,7 @@ public class ProxiCraft : IModApi
         public static void Postfix(EntityVehicle __instance, EntityAlive _ea, ref bool __result)
         {
             // If already found gas, or mod disabled, skip
-            if (__result || !Config?.modEnabled == true || !Config?.enableForRefuel == true)
+            if (__result || Config?.modEnabled != true || Config?.enableForRefuel != true)
                 return;
 
             try
@@ -2147,7 +2174,7 @@ public class ProxiCraft : IModApi
 
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            if (!Config?.enableForRefuel == true)
+            if (Config?.enableForRefuel != true)
                 return instructions;
 
             return RobustTranspiler.SafeTranspile(instructions, FEATURE_ID, codes =>
@@ -2176,7 +2203,7 @@ public class ProxiCraft : IModApi
     {
         int removed = bag.DecItem(item, count, ignoreModded, removedItems);
         
-        if (!Config?.modEnabled == true || !Config?.enableForRefuel == true)
+        if (Config?.modEnabled != true || Config?.enableForRefuel != true)
             return removed;
 
         // Safety check - don't access containers if game state isn't ready
@@ -2223,7 +2250,7 @@ public class ProxiCraft : IModApi
     {
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            if (!Config?.enableForTrader == true)
+            if (Config?.enableForTrader != true)
                 return instructions;
 
             var codes = new List<CodeInstruction>(instructions);
@@ -2251,7 +2278,7 @@ public class ProxiCraft : IModApi
     /// </summary>
     public static int AddCurrencyContainerCount(int playerCount)
     {
-        if (!Config?.modEnabled == true || !Config?.enableForTrader == true)
+        if (Config?.modEnabled != true || Config?.enableForTrader != true)
             return playerCount;
 
         try
@@ -2368,7 +2395,7 @@ public class ProxiCraft : IModApi
             // Modify 'current' field to include container items
             // This is safe because we're using DragAndDropItemChanged (not OnBackpackItemsChangedInternal)
             
-            if (!Config?.modEnabled == true || !Config?.enableForQuests == true)
+            if (Config?.modEnabled != true || Config?.enableForQuests != true)
                 return;
 
             if (!IsGameReady())
@@ -2458,7 +2485,7 @@ public class ProxiCraft : IModApi
             if (gatherType == null || !gatherType.IsInstanceOfType(__instance))
                 return;
             
-            if (!Config?.modEnabled == true || !Config?.enableForQuests == true)
+            if (Config?.modEnabled != true || Config?.enableForQuests != true)
                 return;
 
             if (!IsGameReady())
@@ -2568,7 +2595,7 @@ public class ProxiCraft : IModApi
             if (__result)
                 return;
             
-            if (!Config?.modEnabled == true || !Config?.enableForQuests == true)
+            if (Config?.modEnabled != true || Config?.enableForQuests != true)
                 return;
 
             if (!IsGameReady())
@@ -2724,7 +2751,7 @@ public class ProxiCraft : IModApi
             // Mark HUD ammo counter as dirty to refresh display
             MarkHudAmmoDirty();
 
-            if (!Config?.modEnabled == true || !Config?.enableForQuests == true)
+            if (Config?.modEnabled != true || Config?.enableForQuests != true)
                 return;
 
             try
@@ -2763,7 +2790,7 @@ public class ProxiCraft : IModApi
     {
         public static void Postfix(XUiC_ItemStack __instance)
         {
-            if (!Config?.modEnabled == true || !Config?.enableForQuests == true)
+            if (Config?.modEnabled != true || Config?.enableForQuests != true)
                 return;
             
             // Only trigger when a container or vehicle storage is open
@@ -2877,7 +2904,7 @@ public class ProxiCraft : IModApi
             // Mark HUD ammo counter as dirty to refresh display
             MarkHudAmmoDirty();
 
-            if (!Config?.modEnabled == true || !Config?.enableForQuests == true)
+            if (Config?.modEnabled != true || Config?.enableForQuests != true)
                 return;
 
             try
@@ -2990,7 +3017,7 @@ public class ProxiCraft : IModApi
             // Mark HUD ammo counter as dirty to refresh display
             MarkHudAmmoDirty();
 
-            if (!Config?.modEnabled == true || !Config?.enableForQuests == true)
+            if (Config?.modEnabled != true || Config?.enableForQuests != true)
                 return;
 
             try
@@ -3046,7 +3073,7 @@ public class ProxiCraft : IModApi
         public static bool Prefix(ItemActionTextureBlock __instance, ItemActionData _actionData, ref bool __result)
         {
             // Skip if feature disabled
-            if (!Config?.modEnabled == true || !Config?.enableForPainting == true)
+            if (Config?.modEnabled != true || Config?.enableForPainting != true)
                 return true; // Run original method
 
             try
@@ -3105,7 +3132,7 @@ public class ProxiCraft : IModApi
         public static bool Prefix(ItemActionTextureBlock __instance, ItemActionData _actionData, ref bool __result)
         {
             // Skip if feature disabled
-            if (!Config?.modEnabled == true || !Config?.enableForPainting == true)
+            if (Config?.modEnabled != true || Config?.enableForPainting != true)
                 return true; // Run original method
 
             try
@@ -3211,7 +3238,11 @@ public class ProxiCraft : IModApi
         public static void Postfix(ItemActionRepair __instance, ref bool __result, ItemInventoryData data, BlockValue blockValue)
         {
             // If vanilla succeeded or mod disabled, no need to intervene
-            if (__result || !Config?.modEnabled == true || !Config?.enableForRepairAndUpgrade == true)
+            if (__result || Config?.modEnabled != true || Config?.enableForRepairAndUpgrade != true)
+                return;
+
+            // Safety check - don't run if game state isn't ready
+            if (!IsGameReady())
                 return;
 
             try
@@ -3223,8 +3254,8 @@ public class ProxiCraft : IModApi
                     return;
                 }
 
-                // Get upgrade item name (mirrors vanilla logic)
-                string upgradeItemName = GetUpgradeItemName(__instance, block);
+                // Get upgrade item name (mirrors vanilla logic including 'r' shorthand)
+                string upgradeItemName = GetUpgradeItemName(block);
                 if (string.IsNullOrEmpty(upgradeItemName))
                 {
                     LogDebug($"CanRemoveRequiredResource: upgradeItemName is null/empty for block {block.GetBlockName()}");
@@ -3254,24 +3285,15 @@ public class ProxiCraft : IModApi
                     playerCount += data.holdingEntity.bag?.GetItemCount(itemValue) ?? 0;
                 }
 
-                // Check containers - with Enhanced Safety check if enabled
-                int containerCount;
-                if (Config.enhancedSafetyRepair)
+                // Enhanced Safety mode: Check multiplayer safety first
+                if (Config.enhancedSafetyRepair && !MultiplayerModTracker.IsModAllowed())
                 {
-                    // Enhanced Safety mode: Check multiplayer safety first
-                    if (!MultiplayerModTracker.IsModAllowed())
-                    {
-                        string lockReason = MultiplayerModTracker.GetLockReason() ?? "unknown";
-                        LogDebug($"CanRemoveRequiredResource (enhanced): MP locked ({lockReason}), skipping storage check");
-                        return;
-                    }
-                    containerCount = ContainerManager.GetItemCount(Config, itemValue);
+                    string lockReason = MultiplayerModTracker.GetLockReason() ?? "unknown";
+                    LogDebug($"CanRemoveRequiredResource (enhanced): MP locked ({lockReason}), skipping storage check");
+                    return;
                 }
-                else
-                {
-                    // Legacy mode: Direct ContainerManager access
-                    containerCount = ContainerManager.GetItemCount(Config, itemValue);
-                }
+
+                int containerCount = ContainerManager.GetItemCount(Config, itemValue);
                 int totalAvailable = playerCount + containerCount;
 
                 LogDebug($"CanRemoveRequiredResource: {upgradeItemName} x{requiredCount}, player={playerCount}, containers={containerCount}, total={totalAvailable}");
@@ -3291,45 +3313,66 @@ public class ProxiCraft : IModApi
                 LogWarning($"Error in CanRemoveRequiredResource patch: {ex.Message}");
             }
         }
-
-        /// <summary>
-        /// Gets the upgrade item name from a block, mirroring vanilla's GetUpgradeItemName logic.
-        /// </summary>
-        private static string GetUpgradeItemName(ItemActionRepair instance, Block block)
-        {
-            // Check UpgradeBlock.Item property first
-            if (block.Properties.Values.TryGetValue("UpgradeBlock.Item", out string upgradeItem) &&
-                !string.IsNullOrEmpty(upgradeItem))
-            {
-                return upgradeItem;
-            }
-
-            // Fall back to RepairItems if available
-            if (block.RepairItems != null && block.RepairItems.Count > 0)
-            {
-                return block.RepairItems[0].ItemName;
-            }
-
-            return null;
-        }
     }
 
     /// <summary>
     /// Patch ItemActionRepair.RemoveRequiredResource to remove upgrade materials from containers.
-    /// Uses POSTFIX to remove from containers if vanilla fails to remove everything from player.
+    /// Uses PREFIX+POSTFIX pattern to safely handle material removal:
     /// 
-    /// IMPORTANT: Vanilla returns false if it can't remove ALL items from one source.
-    /// It tries inventory first, then bag - all-or-nothing from each.
-    /// Our postfix kicks in when vanilla fails, meaning player doesn't have enough in either source.
+    /// IMPORTANT: Vanilla's RemoveRequiredResource calls inventory.DecItem() then bag.DecItem(),
+    /// both of which are DESTRUCTIVE — they remove whatever they can and return the count removed,
+    /// even if it's less than requested. The Prefix captures pre-removal inventory/bag counts,
+    /// then the Postfix calculates how many vanilla already consumed and only removes the
+    /// remaining deficit from containers. This prevents double-consumption.
+    /// 
+    /// Known limitation: Does not check allowedUpgradeItems/restrictedUpgradeItems from the
+    /// ItemActionRepair instance. No vanilla V2.5 tool has restrictive settings, but heavily
+    /// modded tools could bypass tool material restrictions via this patch.
     /// </summary>
     [HarmonyPatch(typeof(ItemActionRepair), "RemoveRequiredResource")]
     [HarmonyPriority(Priority.Low)]
     private static class ItemActionRepair_RemoveRequiredResource_Patch
     {
-        public static void Postfix(ItemActionRepair __instance, ref bool __result, ItemInventoryData data, BlockValue blockValue)
+        /// <summary>
+        /// Prefix captures pre-removal item counts so the Postfix can calculate
+        /// how many items vanilla's destructive DecItem calls already consumed.
+        /// </summary>
+        public static void Prefix(ItemInventoryData data, BlockValue blockValue, out (int invCount, int bagCount) __state)
+        {
+            __state = (0, 0);
+            try
+            {
+                Block block = blockValue.Block;
+                if (block == null)
+                    return;
+
+                string upgradeItemName = GetUpgradeItemName(block);
+                if (string.IsNullOrEmpty(upgradeItemName))
+                    return;
+
+                ItemValue itemValue = ItemClass.GetItem(upgradeItemName);
+                if (itemValue == null || itemValue.IsEmpty())
+                    return;
+
+                __state = (
+                    data?.holdingEntity?.inventory?.GetItemCount(itemValue) ?? 0,
+                    data?.holdingEntity?.bag?.GetItemCount(itemValue) ?? 0
+                );
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"Error in RemoveRequiredResource prefix: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(ItemActionRepair __instance, ref bool __result, ItemInventoryData data, BlockValue blockValue, (int invCount, int bagCount) __state)
         {
             // If vanilla succeeded or mod disabled, no need to intervene
-            if (__result || !Config?.modEnabled == true || !Config?.enableForRepairAndUpgrade == true)
+            if (__result || Config?.modEnabled != true || Config?.enableForRepairAndUpgrade != true)
+                return;
+
+            // Safety check - don't run if game state isn't ready
+            if (!IsGameReady())
                 return;
 
             // Enhanced Safety check at the top level
@@ -3345,7 +3388,7 @@ public class ProxiCraft : IModApi
                 if (block == null)
                     return;
 
-                // Get upgrade item name (same logic as CanRemoveRequiredResource)
+                // Get upgrade item name (mirrors vanilla logic including 'r' shorthand)
                 string upgradeItemName = GetUpgradeItemName(block);
                 if (string.IsNullOrEmpty(upgradeItemName))
                     return;
@@ -3359,43 +3402,35 @@ public class ProxiCraft : IModApi
                 if (itemValue == null || itemValue.IsEmpty())
                     return;
 
-                // Calculate how much the player has across both sources
-                int inventoryCount = data?.holdingEntity?.inventory?.GetItemCount(itemValue) ?? 0;
-                int bagCount = data?.holdingEntity?.bag?.GetItemCount(itemValue) ?? 0;
-                int playerTotal = inventoryCount + bagCount;
+                // Calculate how many items vanilla already consumed via destructive DecItem calls.
+                // Vanilla tries inventory.DecItem(full) then bag.DecItem(full) — both remove
+                // whatever they can, even partial amounts, before returning false.
+                int currentInvCount = data?.holdingEntity?.inventory?.GetItemCount(itemValue) ?? 0;
+                int currentBagCount = data?.holdingEntity?.bag?.GetItemCount(itemValue) ?? 0;
+                int vanillaConsumed = (__state.invCount - currentInvCount) + (__state.bagCount - currentBagCount);
+                int remaining = requiredCount - vanillaConsumed;
 
-                // Check containers
-                int containerCount = ContainerManager.GetItemCount(Config, itemValue);
-                int totalAvailable = playerTotal + containerCount;
+                LogDebug($"RemoveRequiredResource: {upgradeItemName} x{requiredCount}, vanillaConsumed={vanillaConsumed}, remaining={remaining}");
 
-                // If we don't have enough total, bail
-                if (totalAvailable < requiredCount)
+                if (remaining <= 0)
+                {
+                    // Vanilla already removed enough (shouldn't normally happen since vanilla returned false)
+                    __result = true;
                     return;
-
-                // Remove in order: inventory -> bag -> containers
-                int remaining = requiredCount;
-
-                // Remove from inventory first
-                if (remaining > 0 && data?.holdingEntity?.inventory != null)
-                {
-                    int removed = data.holdingEntity.inventory.DecItem(itemValue, remaining);
-                    remaining -= removed;
                 }
 
-                // Then bag
-                if (remaining > 0 && data?.holdingEntity?.bag != null)
+                // Check containers have enough using remaining (not full requiredCount)
+                int containerCount = ContainerManager.GetItemCount(Config, itemValue);
+                if (containerCount < remaining)
                 {
-                    int removed = data.holdingEntity.bag.DecItem(itemValue, remaining);
-                    remaining -= removed;
+                    LogDebug($"RemoveRequiredResource: NOT ENOUGH - need {remaining} more, containers have {containerCount}");
+                    return;
                 }
 
-                // Finally containers
-                if (remaining > 0)
-                {
-                    int removed = ContainerManager.RemoveItems(Config, itemValue, remaining);
-                    remaining -= removed;
-                    LogDebug($"RemoveRequiredResource: Removed {removed} {upgradeItemName} from containers (needed {requiredCount})");
-                }
+                // Remove only the remaining deficit from containers
+                int removed = ContainerManager.RemoveItems(Config, itemValue, remaining);
+                remaining -= removed;
+                LogDebug($"RemoveRequiredResource: Removed {removed} {upgradeItemName} from containers (needed {requiredCount}, vanilla took {vanillaConsumed})");
 
                 // Show UI harvesting indicator (like vanilla does)
                 if (remaining <= 0)
@@ -3410,29 +3445,8 @@ public class ProxiCraft : IModApi
             }
             catch (Exception ex)
             {
-                LogWarning($"Error in RemoveRequiredResource patch: {ex.Message}");
+                LogWarning($"Error in RemoveRequiredResource postfix: {ex.Message}");
             }
-        }
-
-        /// <summary>
-        /// Gets the upgrade item name from a block, mirroring vanilla's GetUpgradeItemName logic.
-        /// </summary>
-        private static string GetUpgradeItemName(Block block)
-        {
-            // Check UpgradeBlock.Item property first
-            if (block.Properties.Values.TryGetValue("UpgradeBlock.Item", out string upgradeItem) &&
-                !string.IsNullOrEmpty(upgradeItem))
-            {
-                return upgradeItem;
-            }
-
-            // Fall back to RepairItems if available
-            if (block.RepairItems != null && block.RepairItems.Count > 0)
-            {
-                return block.RepairItems[0].ItemName;
-            }
-
-            return null;
         }
     }
 
@@ -3461,7 +3475,7 @@ public class ProxiCraft : IModApi
         public static void Postfix(ItemActionRepair __instance, ref bool __result, ItemInventoryData _data, ItemStack _itemStack)
         {
             // If vanilla succeeded or mod disabled, no need to intervene
-            if (__result || !Config?.modEnabled == true || !Config?.enableForRepairAndUpgrade == true)
+            if (__result || Config?.modEnabled != true || Config?.enableForRepairAndUpgrade != true)
                 return;
 
             // Safety check - don't run if game state isn't ready
@@ -3506,18 +3520,44 @@ public class ProxiCraft : IModApi
 
     /// <summary>
     /// Patch ItemActionRepair.removeRequiredItem to remove repair materials from containers.
-    /// Uses POSTFIX to remove from containers if vanilla fails to remove everything from player.
+    /// Uses PREFIX+POSTFIX pattern to safely handle material removal.
     /// 
-    /// This handles the actual consumption of materials when repairing a damaged block.
+    /// IMPORTANT: Same destructive-DecItem problem as RemoveRequiredResource — vanilla's
+    /// removeRequiredItem calls inventory.DecItem() then bag.DecItem(), both destructive.
+    /// The Prefix captures pre-removal counts, and the Postfix calculates the deficit
+    /// after vanilla's consumption to avoid double-removal.
     /// </summary>
     [HarmonyPatch(typeof(ItemActionRepair), "removeRequiredItem")]
     [HarmonyPriority(Priority.Low)]
     private static class ItemActionRepair_removeRequiredItem_Patch
     {
-        public static void Postfix(ItemActionRepair __instance, ref bool __result, ItemInventoryData _data, ItemStack _itemStack)
+        /// <summary>
+        /// Prefix captures pre-removal item counts so the Postfix can calculate
+        /// how many items vanilla's destructive DecItem calls already consumed.
+        /// </summary>
+        public static void Prefix(ItemInventoryData _data, ItemStack _itemStack, out (int invCount, int bagCount) __state)
+        {
+            __state = (0, 0);
+            try
+            {
+                if (_itemStack == null || _itemStack.IsEmpty())
+                    return;
+
+                __state = (
+                    _data?.holdingEntity?.inventory?.GetItemCount(_itemStack.itemValue) ?? 0,
+                    _data?.holdingEntity?.bag?.GetItemCount(_itemStack.itemValue) ?? 0
+                );
+            }
+            catch (Exception ex)
+            {
+                LogWarning($"Error in removeRequiredItem prefix: {ex.Message}");
+            }
+        }
+
+        public static void Postfix(ItemActionRepair __instance, ref bool __result, ItemInventoryData _data, ItemStack _itemStack, (int invCount, int bagCount) __state)
         {
             // If vanilla succeeded or mod disabled, no need to intervene
-            if (__result || !Config?.modEnabled == true || !Config?.enableForRepairAndUpgrade == true)
+            if (__result || Config?.modEnabled != true || Config?.enableForRepairAndUpgrade != true)
                 return;
 
             // Safety check - don't run if game state isn't ready
@@ -3538,43 +3578,33 @@ public class ProxiCraft : IModApi
 
                 int requiredCount = _itemStack.count;
 
-                // Calculate how much the player has across both sources
-                int inventoryCount = _data?.holdingEntity?.inventory?.GetItemCount(_itemStack.itemValue) ?? 0;
-                int bagCount = _data?.holdingEntity?.bag?.GetItemCount(_itemStack.itemValue) ?? 0;
-                int playerTotal = inventoryCount + bagCount;
+                // Calculate how many items vanilla already consumed via destructive DecItem calls.
+                int currentInvCount = _data?.holdingEntity?.inventory?.GetItemCount(_itemStack.itemValue) ?? 0;
+                int currentBagCount = _data?.holdingEntity?.bag?.GetItemCount(_itemStack.itemValue) ?? 0;
+                int vanillaConsumed = (__state.invCount - currentInvCount) + (__state.bagCount - currentBagCount);
+                int remaining = requiredCount - vanillaConsumed;
 
-                // Check containers
-                int containerCount = ContainerManager.GetItemCount(Config, _itemStack.itemValue);
-                int totalAvailable = playerTotal + containerCount;
+                LogDebug($"removeRequiredItem: {_itemStack.itemValue.ItemClass?.GetItemName()} x{requiredCount}, vanillaConsumed={vanillaConsumed}, remaining={remaining}");
 
-                // If we don't have enough total, bail
-                if (totalAvailable < requiredCount)
+                if (remaining <= 0)
+                {
+                    // Vanilla already removed enough
+                    __result = true;
                     return;
-
-                // Remove in order: inventory -> bag -> containers
-                int remaining = requiredCount;
-
-                // Remove from inventory first
-                if (remaining > 0 && _data?.holdingEntity?.inventory != null)
-                {
-                    int removed = _data.holdingEntity.inventory.DecItem(_itemStack.itemValue, remaining);
-                    remaining -= removed;
                 }
 
-                // Then bag
-                if (remaining > 0 && _data?.holdingEntity?.bag != null)
+                // Check containers have enough for the remaining deficit
+                int containerCount = ContainerManager.GetItemCount(Config, _itemStack.itemValue);
+                if (containerCount < remaining)
                 {
-                    int removed = _data.holdingEntity.bag.DecItem(_itemStack.itemValue, remaining);
-                    remaining -= removed;
+                    LogDebug($"removeRequiredItem: NOT ENOUGH - need {remaining} more, containers have {containerCount}");
+                    return;
                 }
 
-                // Finally containers
-                if (remaining > 0)
-                {
-                    int removed = ContainerManager.RemoveItems(Config, _itemStack.itemValue, remaining);
-                    remaining -= removed;
-                    LogDebug($"removeRequiredItem: Removed {removed} {_itemStack.itemValue.ItemClass?.GetItemName()} from containers (needed {requiredCount})");
-                }
+                // Remove only the remaining deficit from containers
+                int removed = ContainerManager.RemoveItems(Config, _itemStack.itemValue, remaining);
+                remaining -= removed;
+                LogDebug($"removeRequiredItem: Removed {removed} {_itemStack.itemValue.ItemClass?.GetItemName()} from containers (needed {requiredCount}, vanilla took {vanillaConsumed})");
 
                 if (remaining <= 0)
                 {
@@ -3583,7 +3613,7 @@ public class ProxiCraft : IModApi
             }
             catch (Exception ex)
             {
-                LogWarning($"Error in removeRequiredItem patch: {ex.Message}");
+                LogWarning($"Error in removeRequiredItem postfix: {ex.Message}");
             }
         }
     }
@@ -3619,7 +3649,7 @@ public class ProxiCraft : IModApi
 
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            if (!Config?.enableForGeneratorRefuel == true)
+            if (Config?.enableForGeneratorRefuel != true)
                 return instructions;
 
             return RobustTranspiler.SafeTranspile(instructions, FEATURE_ID, codes =>
@@ -3648,7 +3678,7 @@ public class ProxiCraft : IModApi
     {
         int removed = bag.DecItem(item, count, ignoreModded, removedItems);
 
-        if (!Config?.modEnabled == true || !Config?.enableForGeneratorRefuel == true)
+        if (Config?.modEnabled != true || Config?.enableForGeneratorRefuel != true)
             return removed;
 
         // Safety check - don't access containers if game state isn't ready
@@ -3781,7 +3811,7 @@ public class ProxiCraft : IModApi
     {
         public static void Prefix(XUi _xui, Vehicle vehicle)
         {
-            if (!Config?.modEnabled == true || !Config?.enableForItemRepair == true)
+            if (Config?.modEnabled != true || Config?.enableForItemRepair != true)
                 return;
 
             if (!IsGameReady())
@@ -3903,7 +3933,7 @@ public class ProxiCraft : IModApi
 
         public static void Postfix(XUiC_HUDStatBar __instance)
         {
-            if (!Config?.modEnabled == true || !Config?.enableHudAmmoCounter == true)
+            if (Config?.modEnabled != true || Config?.enableHudAmmoCounter != true)
                 return;
 
             // Safety check - don't run if game state isn't ready
@@ -3987,7 +4017,7 @@ public class ProxiCraft : IModApi
     {
         public static void Postfix()
         {
-            if (!Config?.modEnabled == true)
+            if (Config?.modEnabled != true)
                 return;
 
             // Invalidate cache since bag contents changed
@@ -4007,7 +4037,7 @@ public class ProxiCraft : IModApi
     {
         public static void Postfix()
         {
-            if (!Config?.modEnabled == true)
+            if (Config?.modEnabled != true)
                 return;
 
             // Invalidate cache since inventory contents changed
@@ -4028,7 +4058,7 @@ public class ProxiCraft : IModApi
     {
         public static void Postfix()
         {
-            if (!Config?.modEnabled == true)
+            if (Config?.modEnabled != true)
                 return;
 
             ContainerManager.InvalidateCache();
@@ -4057,7 +4087,7 @@ public class ProxiCraft : IModApi
 
         public static void Postfix()
         {
-            if (!Config?.modEnabled == true)
+            if (Config?.modEnabled != true)
                 return;
 
             ContainerManager.InvalidateCache();
@@ -4098,11 +4128,11 @@ public class ProxiCraft : IModApi
     {
         public static void Postfix(XUiC_ItemStack __instance, bool value)
         {
-            if (!Config?.modEnabled == true)
+            if (Config?.modEnabled != true)
                 return;
 
             // Only act if respectLockedSlots is enabled (otherwise locks don't affect our counts)
-            if (!Config?.respectLockedSlots == true)
+            if (Config?.respectLockedSlots != true)
                 return;
 
             try
@@ -4186,7 +4216,7 @@ public class ProxiCraft : IModApi
         public static void Postfix(XUiM_PlayerInventory __instance, ref bool __result, ItemStack _removedStack, ItemStack _addedStack, int _slotNumber)
         {
             // Only process if vanilla said false and we might be able to help
-            if (__result || !Config?.modEnabled == true || !Config?.enableForTrader == true)
+            if (__result || Config?.modEnabled != true || Config?.enableForTrader != true)
                 return;
 
             // Safety check
