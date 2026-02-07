@@ -189,4 +189,4 @@ git push origin vX.Y.Z
 
 ---
 
-**Last Updated**: January 4, 2026 (v1.2.4 release)
+**Last Updated**: January 27, 2026 (v1.2.11 release)
