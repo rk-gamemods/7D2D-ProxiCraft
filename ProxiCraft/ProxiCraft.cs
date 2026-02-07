@@ -1601,7 +1601,7 @@ public class ProxiCraft : IModApi
         {
             // If inventory already has items, no need to check containers
             // This makes us purely ADDITIVE - we only supplement inventory
-            if (__result || !(Config?.modEnabled == true))
+            if (__result || Config?.modEnabled != true)
                 return;
 
             // Safety check - don't run if game state isn't ready
