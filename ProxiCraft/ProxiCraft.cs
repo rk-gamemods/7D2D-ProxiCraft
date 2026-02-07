@@ -748,29 +748,6 @@ public class ProxiCraft : IModApi
     }
 
     /// <summary>
-    /// Removes items from containers after removing from player inventory.
-    /// </summary>
-    public static void RemoveRemainingItems(ItemValue item, int remaining)
-    {
-        if (Config?.modEnabled != true || remaining <= 0)
-            return;
-
-        // Safety check - don't run if game state isn't ready
-        if (!IsGameReady())
-            return;
-
-        try
-        {
-            int removed = ContainerManager.RemoveItems(Config, item, remaining);
-            LogDebug($"Removed {removed}/{remaining} {item?.ItemClass?.GetItemName() ?? "unknown"} from containers");
-        }
-        catch (Exception ex)
-        {
-            LogWarning($"Error removing items from containers: {ex.Message}");
-        }
-    }
-
-    /// <summary>
     /// Triggers a refresh of the recipe tracker window if it exists and is visible.
     /// Called when container contents change to update ingredient counts in real-time.
     /// </summary>
