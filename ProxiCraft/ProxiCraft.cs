@@ -329,8 +329,6 @@ public class ProxiCraft : IModApi
             Config = new ModConfig();
         }
     }
-    
-    // GetModFolder() removed - use ModPath.ModFolder instead
 
     /// <summary>
     /// Initializes the FileSystemWatcher to monitor config.json for changes.
@@ -1271,7 +1269,7 @@ public class ProxiCraft : IModApi
         // Patch the recipe list building to include container items BEFORE calculations
         [HarmonyPatch("BuildRecipeInfosList")]
         [HarmonyPrefix]
-        public static void BuildRecipeInfosList_Prefix(XUiC_RecipeList __instance, ref List<ItemStack> _items)
+        public static void BuildRecipeInfosList_Prefix(ref List<ItemStack> _items)
         {
             if (Config?.modEnabled != true)
                 return;
@@ -2246,7 +2244,7 @@ public class ProxiCraft : IModApi
                 }
             }
             
-            return codes.AsEnumerable();
+            return codes;
         }
     }
 
