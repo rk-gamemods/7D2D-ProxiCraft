@@ -1763,21 +1763,7 @@ public class ProxiCraft : IModApi
                     
                     if (fromContainers > 0)
                     {
-                        int removed;
-                        
-                        // ENHANCED SAFETY: Use VirtualInventoryProvider
-                        if (_useEnhancedSafety && player != null)
-                        {
-                            // VirtualInventoryProvider.ConsumeItems handles bag->toolbelt->storage order
-                            // But inventory already removed from bag/toolbelt, so just remove from storage
-                            removed = ContainerManager.RemoveItems(Config, required.itemValue, fromContainers);
-                            FileLog($"[REMOVEITEMS] Enhanced safety: Removed {removed} from containers via ContainerManager");
-                        }
-                        else
-                        {
-                            // LEGACY: Direct ContainerManager access
-                            removed = ContainerManager.RemoveItems(Config, required.itemValue, fromContainers);
-                        }
+                        int removed = ContainerManager.RemoveItems(Config, required.itemValue, fromContainers);
                         
                         LogDebug($"Removed {removed}/{fromContainers} {required.itemValue?.ItemClass?.GetItemName()} from containers (had {inventoryHadBefore} in inventory, needed {neededTotal})");
                         FileLog($"[REMOVEITEMS] Removed {removed} from containers");
@@ -2034,24 +2020,13 @@ public class ProxiCraft : IModApi
             int remaining = count - removed;
             LogDebug($"DecItemForReload: Need {remaining} more from containers");
             
-            int containerRemoved;
-            if (Config.enhancedSafetyReload)
+            // MP safety check (when enhanced safety is enabled)
+            if (Config.enhancedSafetyReload && !MultiplayerModTracker.IsModAllowed())
             {
-                // Enhanced Safety mode: Use VirtualInventoryProvider with MP safety checks
-                // Note: We already removed from inventory, so just need storage portion
-                // Check multiplayer safety first
-                if (!MultiplayerModTracker.IsModAllowed())
-                {
-                    LogDebug($"DecItemForReload (enhanced): MP locked, skipping storage");
-                    return removed;
-                }
-                containerRemoved = ContainerManager.RemoveItems(Config, item, remaining);
+                LogDebug($"DecItemForReload: MP locked, skipping storage");
+                return removed;
             }
-            else
-            {
-                // Legacy mode: Direct ContainerManager access
-                containerRemoved = ContainerManager.RemoveItems(Config, item, remaining);
-            }
+            int containerRemoved = ContainerManager.RemoveItems(Config, item, remaining);
             LogDebug($"Removed {containerRemoved} ammo from containers for reload");
             removed += containerRemoved;
         }
@@ -2103,22 +2078,13 @@ public class ProxiCraft : IModApi
 
                 var fuelItem = ItemClass.GetItem(fuelItemName, false);
                 
-                int containerCount;
-                if (Config.enhancedSafetyRefuel)
+                // MP safety check (when enhanced safety is enabled)
+                if (Config.enhancedSafetyRefuel && !MultiplayerModTracker.IsModAllowed())
                 {
-                    // Enhanced Safety mode: Check multiplayer safety first
-                    if (!MultiplayerModTracker.IsModAllowed())
-                    {
-                        LogDebug($"hasGasCan (enhanced): MP locked, skipping storage check");
-                        return;
-                    }
-                    containerCount = ContainerManager.GetItemCount(Config, fuelItem);
+                    LogDebug($"hasGasCan: MP locked, skipping storage check");
+                    return;
                 }
-                else
-                {
-                    // Legacy mode: Direct ContainerManager access
-                    containerCount = ContainerManager.GetItemCount(Config, fuelItem);
-                }
+                int containerCount = ContainerManager.GetItemCount(Config, fuelItem);
                 
                 if (containerCount > 0)
                 {
@@ -2189,22 +2155,13 @@ public class ProxiCraft : IModApi
         {
             int remaining = count - removed;
             
-            int containerRemoved;
-            if (Config.enhancedSafetyRefuel)
+            // MP safety check (when enhanced safety is enabled)
+            if (Config.enhancedSafetyRefuel && !MultiplayerModTracker.IsModAllowed())
             {
-                // Enhanced Safety mode: Check multiplayer safety first
-                if (!MultiplayerModTracker.IsModAllowed())
-                {
-                    LogDebug($"DecItemForRefuel (enhanced): MP locked, skipping storage");
-                    return removed;
-                }
-                containerRemoved = ContainerManager.RemoveItems(Config, item, remaining);
+                LogDebug($"DecItemForRefuel: MP locked, skipping storage");
+                return removed;
             }
-            else
-            {
-                // Legacy mode: Direct ContainerManager access
-                containerRemoved = ContainerManager.RemoveItems(Config, item, remaining);
-            }
+            int containerRemoved = ContainerManager.RemoveItems(Config, item, remaining);
             LogDebug($"Removed {containerRemoved} fuel from containers");
             removed += containerRemoved;
         }
@@ -3653,22 +3610,13 @@ public class ProxiCraft : IModApi
         {
             int remaining = count - removed;
             
-            int containerRemoved;
-            if (Config.enhancedSafetyRefuel)
+            // MP safety check (when enhanced safety is enabled)
+            if (Config.enhancedSafetyRefuel && !MultiplayerModTracker.IsModAllowed())
             {
-                // Enhanced Safety mode: Check multiplayer safety first
-                if (!MultiplayerModTracker.IsModAllowed())
-                {
-                    LogDebug($"DecItemForGeneratorRefuel (enhanced): MP locked, skipping storage");
-                    return removed;
-                }
-                containerRemoved = ContainerManager.RemoveItems(Config, item, remaining);
+                LogDebug($"DecItemForGeneratorRefuel: MP locked, skipping storage");
+                return removed;
             }
-            else
-            {
-                // Legacy mode: Direct ContainerManager access
-                containerRemoved = ContainerManager.RemoveItems(Config, item, remaining);
-            }
+            int containerRemoved = ContainerManager.RemoveItems(Config, item, remaining);
             LogDebug($"Removed {containerRemoved} fuel from containers for generator");
             removed += containerRemoved;
         }
