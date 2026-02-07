@@ -195,7 +195,7 @@ The `7D2DCodebase` folder is its own git repository - each decompile becomes a c
 **First time or after game update:**
 ```powershell
 cd C:\Users\Admin\Documents\GIT\GameMods\7D2DMods
-.\Decompile-7D2D.ps1
+.\DecompileGameCode.ps1
 ```
 
 The script will:
