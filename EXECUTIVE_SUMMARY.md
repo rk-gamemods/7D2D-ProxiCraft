@@ -5,13 +5,13 @@
 This document summarizes the comprehensive rewrite that resulted in the ProxiCraft mod for 7 Days to Die, transforming a functional but fragile single-file implementation into a robust, maintainable, and highly compatible modular codebase with **new features** not present in any prior version.
 
 **Inspired By:** CraftFromContainers community lineage (llmonmonll → aedenthorn → SYN0N1M → others)
-**This Version:** 2.0.0
+**This Version:** 1.2.11
 **Date:** December 2024
 **Repository:** [github.com/rk-gamemods/7D2D-ProxiCraft](https://github.com/rk-gamemods/7D2D-ProxiCraft)
 
 ---
 
-## What's New in v2.0 (Not in Prior Versions)
+## What's New (Not in Prior Versions)
 
 ✅ **Challenge Tracker Integration** - Container items count toward challenges like "Gather 4 Wood"
 ✅ **Real-time Updates** - Challenge counts update immediately when moving items between inventory and storage
@@ -40,16 +40,26 @@ This document summarizes the comprehensive rewrite that resulted in the ProxiCra
 
 | File | Purpose | Lines |
 |------|---------|-------|
-| `ProxiCraft.cs` | Main mod entry, Harmony patches | ~900 |
-| `ContainerManager.cs` | Container scanning, item management | ~300 |
-| `ModConfig.cs` | Configuration with XML documentation | ~80 |
+| `ProxiCraft.cs` | Main mod entry, Harmony patches | ~4,200 |
+| `ContainerManager.cs` | Container discovery/operations | ~2,700 |
+| `ModConfig.cs` | Configuration | ~80 |
 | `ModCompatibility.cs` | Conflict detection, diagnostics | ~380 |
 | `AdaptivePatching.cs` | Dynamic patch strategy selection | ~200 |
+| `AdaptiveMethodFinder.cs` | Renamed method discovery | — |
 | `SafePatcher.cs` | Error-wrapped Harmony operations | ~200 |
 | `ConsoleCmdProxiCraft.cs` | In-game console commands | ~270 |
-| `NetPackagePCLock.cs` | Multiplayer synchronization | ~50 |
+| `VirtualInventoryProvider.cs` | Central inventory hub (MP-safe) | — |
+| `MultiplayerModTracker.cs` | MP handshake and safety | — |
+| `RobustTranspiler.cs` | Transpiler utilities | — |
+| `PerformanceProfiler.cs` | Performance profiling | — |
+| `FlightRecorder.cs` | Diagnostic flight recorder | — |
+| `NetworkDiagnostics.cs` | Network latency diagnostics | — |
+| `NetPackagePCLock.cs` | Multiplayer lock sync packet | ~50 |
+| `StartupHealthCheck.cs` | Startup validation | — |
+| `StoragePriority.cs` | Storage priority ordering | — |
+| `ModPath.cs` | Mod path resolution | — |
 
-**Total: 8 focused files vs 1 monolithic file**
+*Total: 19 focused files (18 source + 1 AssemblyInfo) vs 1 monolithic file*
 
 ### Separation of Concerns
 
@@ -204,8 +214,8 @@ New `pc` command for runtime diagnostics:
 
 ```text
 === ProxiCraft Diagnostic Report ===
-Mod Version: 2.0.0
-Game Version: Alpha 21.2 (b37)
+Mod Version: 1.2.11
+Game Version: V2.5 (b32)
 Config Enabled: True
 
 --- Backpack Mod Compatibility ---
@@ -318,7 +328,7 @@ For users upgrading from v1.x:
 | **Stability** | Crashes on errors | Graceful degradation |
 | **Compatibility** | Conflicts common | Adaptive, backpack-friendly |
 | **Debugging** | Log file only | In-game console commands |
-| **Maintainability** | 1 file, 1161 lines | 8 focused modules |
+| **Maintainability** | 1 file, 1161 lines | 19 focused modules |
 | **Performance** | Scan every check | Cached with invalidation |
 | **Transparency** | Silent failures | Detailed diagnostics |
 
@@ -328,15 +338,27 @@ For users upgrading from v1.x:
 
 ```text
 ProxiCraft/
-├── ProxiCraft/           # Source code
-│   ├── ProxiCraft.cs     # Main mod with Harmony patches
-│   ├── ContainerManager.cs        # Container scanning and item management
+├── ProxiCraft/           # Source code (19 .cs files)
+│   ├── ProxiCraft.cs              # Main mod, Harmony patches (~4,200 lines)
+│   ├── ContainerManager.cs        # Container discovery/operations (~2,700 lines)
+│   ├── VirtualInventoryProvider.cs # Central inventory hub (MP-safe)
+│   ├── MultiplayerModTracker.cs   # MP handshake and safety
 │   ├── ModConfig.cs               # Configuration settings
-│   ├── SafePatcher.cs             # Safe patching utilities
-│   ├── AdaptivePatching.cs        # Compatibility helpers
+│   ├── ConsoleCmdProxiCraft.cs    # Console commands (pc)
 │   ├── ModCompatibility.cs        # Conflict detection
-│   ├── ConsoleCmdProxiCraft.cs  # Console commands (pc)
-│   └── NetPackagePCLock.cs       # Multiplayer lock sync
+│   ├── AdaptivePatching.cs        # Dynamic patch strategy selection
+│   ├── AdaptiveMethodFinder.cs    # Renamed method discovery
+│   ├── SafePatcher.cs             # Error-wrapped Harmony operations
+│   ├── RobustTranspiler.cs        # Transpiler utilities
+│   ├── PerformanceProfiler.cs     # Performance profiling
+│   ├── FlightRecorder.cs          # Diagnostic flight recorder
+│   ├── NetworkDiagnostics.cs      # Network latency diagnostics
+│   ├── NetPackagePCLock.cs        # Multiplayer lock sync packet
+│   ├── StartupHealthCheck.cs      # Startup validation
+│   ├── StoragePriority.cs         # Storage priority ordering
+│   └── ModPath.cs                 # Mod path resolution
+├── Properties/
+│   └── AssemblyInfo.cs            # Assembly metadata
 ├── Release/ProxiCraft/   # Ready-to-deploy mod package
 │   ├── ProxiCraft.dll    # Compiled mod
 │   ├── ModInfo.xml                # Mod metadata

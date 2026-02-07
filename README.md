@@ -374,7 +374,7 @@ ProxiCraft is designed to survive game updates:
 | Unlock arrives before Lock | Ghost lock | **Last-write-wins**: Packets have timestamps, only newer packets apply |
 | Lock fails, retry collides with Unlock | Stale lock | **Retry cancellation**: Lock retry checks if container still locked before sending |
 | Player disconnects abruptly | Orphan lock | **Orphan cleanup**: ClearTileEntityLockForClient patch broadcasts unlock |
-| All above fail | Permanent ghost lock | **Lock expiration**: Locks auto-expire after 5 minutes (configurable) |
+| All above fail | Permanent ghost lock | **Lock expiration**: Locks auto-expire after 30 seconds (LOCK_EXPIRATION_SECONDS = 30) |
 | High latency (>500ms) | Stale state | **Eventual consistency**: Acceptable trade-off; logged for diagnostics |
 
 #### Lock Expiration (Self-Healing)
@@ -397,7 +397,7 @@ ProxiCraft is designed to survive game updates:
 - Expiration checked lazily (only when accessing container)
 - No background threads or heartbeats
 - Self-healing: ghost locks eventually resolve without intervention
-- 5 minutes is long enough for any normal operation
+- 30 seconds is long enough for any normal operation
 
 #### Error Handling Philosophy
 
@@ -421,12 +421,26 @@ ProxiCraft is designed to survive game updates:
 ```text
 ProxiCraft/
 ├── ProxiCraft/
-│   ├── ProxiCraft.cs              # Main mod, Harmony patches
-│   ├── ContainerManager.cs        # Container scanning
+│   ├── ProxiCraft.cs              # Main mod, Harmony patches (~4,200 lines)
+│   ├── ContainerManager.cs        # Container discovery/operations (~2,700 lines)
 │   ├── VirtualInventoryProvider.cs # Central inventory hub (MP-safe)
 │   ├── MultiplayerModTracker.cs   # MP handshake and safety
 │   ├── ModConfig.cs               # Configuration
-│   └── ConsoleCmdProxiCraft.cs    # Console commands
+│   ├── ConsoleCmdProxiCraft.cs    # Console commands
+│   ├── ModCompatibility.cs        # Conflict detection & diagnostics
+│   ├── AdaptivePatching.cs        # Dynamic patch strategy selection
+│   ├── AdaptiveMethodFinder.cs    # Renamed method discovery
+│   ├── SafePatcher.cs             # Error-wrapped Harmony operations
+│   ├── RobustTranspiler.cs        # Transpiler utilities
+│   ├── PerformanceProfiler.cs     # Performance profiling
+│   ├── FlightRecorder.cs          # Diagnostic flight recorder
+│   ├── NetworkDiagnostics.cs      # Network latency diagnostics
+│   ├── NetPackagePCLock.cs        # Multiplayer lock sync packet
+│   ├── StartupHealthCheck.cs      # Startup validation
+│   ├── StoragePriority.cs         # Storage priority ordering
+│   └── ModPath.cs                 # Mod path resolution
+├── Properties/
+│   └── AssemblyInfo.cs            # Assembly metadata
 └── Release/ProxiCraft/            # Distribution package
 ```
 
@@ -461,7 +475,7 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 
 **🚨 CRITICAL FIX:**
 
-- **Fixed multiplayer container crash** - Opening any container in multiplayer caused ALL clients to crash instantly. Root cause: infinite recursion in network packet serialization due to incorrect C# base method call syntax (`((NetPackage)this).write()` instead of `base.write()`). See [POSTMORTEM-v1.2.11.md](POSTMORTEM-v1.2.11.md) for the full story.
+- **Fixed multiplayer container crash** - Opening any container in multiplayer caused ALL clients to crash instantly. Root cause: infinite recursion in network packet serialization due to incorrect C# base method call syntax (`((NetPackage)this).write()` instead of `base.write()`).
 
 **Bug Fixes:**
 

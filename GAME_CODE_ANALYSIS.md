@@ -2,7 +2,7 @@
 
 ## Technical Reference for ProxiCraft mod
 
-This document provides a comprehensive analysis of the 7 Days to Die game code relevant to crafting, inventory management, challenges, and related systems. The analysis was performed by decompiling `Assembly-CSharp.dll` (Version: 1.0 / Alpha 22+).
+This document provides a comprehensive analysis of the 7 Days to Die game code relevant to crafting, inventory management, challenges, and related systems. The analysis was performed by decompiling `Assembly-CSharp.dll` (Version: V2.5 (b32) — Build 21600838).
 
 ---
 
@@ -816,4 +816,4 @@ See [RESEARCH_NOTES.md](RESEARCH_NOTES.md) for the full debugging history and [I
 
 *Document generated: December 26, 2025*
 *Last updated: December 27, 2025 (Fix #8e documented)*
-*Game Version: 7 Days to Die 1.0+ / 2.x*
+*Game Version: 7 Days to Die V2.5 (b32)*

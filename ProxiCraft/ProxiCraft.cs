@@ -2297,6 +2297,40 @@ public class ProxiCraft : IModApi
     // ====================================================================================
 
     /// <summary>
+    /// Shared reflection cache for all challenge-objective patches.
+    /// Resolves types and fields once instead of three times (one per patch class).
+    /// </summary>
+    private static class ChallengeReflectionCache
+    {
+        public static readonly Type GatherType;
+        public static readonly Type TrackedItemType;
+        public static readonly FieldInfo ExpectedItemField;
+        public static readonly FieldInfo CurrentField;
+        public static readonly FieldInfo MaxCountField;
+        public static readonly PropertyInfo CompleteProperty;
+
+        static ChallengeReflectionCache()
+        {
+            FileLog("ChallengeReflectionCache: Resolving challenge types/fields");
+            GatherType = AccessTools.TypeByName("Challenges.ChallengeObjectiveGather");
+            TrackedItemType = AccessTools.TypeByName("Challenges.ChallengeBaseTrackedItemObjective");
+            var baseObjType = AccessTools.TypeByName("Challenges.BaseChallengeObjective");
+
+            if (TrackedItemType != null)
+            {
+                ExpectedItemField = AccessTools.Field(TrackedItemType, "expectedItem");
+            }
+            if (baseObjType != null)
+            {
+                CurrentField = AccessTools.Field(baseObjType, "current");
+                MaxCountField = AccessTools.Field(baseObjType, "MaxCount");
+                CompleteProperty = AccessTools.Property(baseObjType, "Complete");
+            }
+            FileLog($"ChallengeReflectionCache: GatherType={GatherType?.Name}, ExpectedItemField={ExpectedItemField?.Name}, CompleteProperty={CompleteProperty?.Name}");
+        }
+    }
+
+    /// <summary>
     /// Patch ChallengeObjectiveGather.HandleUpdatingCurrent to add container items.
     /// 
     /// This is the CORE patch. HandleUpdatingCurrent is called when the challenge recounts
@@ -2309,40 +2343,15 @@ public class ProxiCraft : IModApi
     [HarmonyPriority(Priority.Low)]
     private static class ChallengeObjectiveGather_HandleUpdatingCurrent_Patch
     {
-        private static Type gatherType;
-        private static Type trackedItemType;
-        private static FieldInfo expectedItemField;
-        private static FieldInfo currentField;
-        private static FieldInfo maxCountField;
-
-        static ChallengeObjectiveGather_HandleUpdatingCurrent_Patch()
-        {
-            FileLog("HandleUpdatingCurrent_Patch: Static constructor called");
-            gatherType = AccessTools.TypeByName("Challenges.ChallengeObjectiveGather");
-            trackedItemType = AccessTools.TypeByName("Challenges.ChallengeBaseTrackedItemObjective");
-            var baseObjType = AccessTools.TypeByName("Challenges.BaseChallengeObjective");
-            
-            if (trackedItemType != null)
-            {
-                expectedItemField = AccessTools.Field(trackedItemType, "expectedItem");
-            }
-            if (baseObjType != null)
-            {
-                currentField = AccessTools.Field(baseObjType, "current");
-                maxCountField = AccessTools.Field(baseObjType, "MaxCount");
-            }
-            FileLog($"HandleUpdatingCurrent_Patch: gatherType={gatherType?.Name}, currentField={currentField?.Name}");
-        }
-
         static MethodBase TargetMethod()
         {
             FileLog("HandleUpdatingCurrent_Patch: TargetMethod called");
-            if (gatherType == null)
+            if (ChallengeReflectionCache.GatherType == null)
             {
-                FileLog("HandleUpdatingCurrent_Patch: gatherType is NULL");
+                FileLog("HandleUpdatingCurrent_Patch: GatherType is NULL");
                 return null;
             }
-            var method = AccessTools.Method(gatherType, "HandleUpdatingCurrent");
+            var method = AccessTools.Method(ChallengeReflectionCache.GatherType, "HandleUpdatingCurrent");
             FileLog($"HandleUpdatingCurrent_Patch: TargetMethod returning {method?.Name ?? "NULL"}");
             return method;
         }
@@ -2360,12 +2369,12 @@ public class ProxiCraft : IModApi
 
             try
             {
-                var expectedItem = expectedItemField?.GetValue(__instance) as ItemValue;
+                var expectedItem = ChallengeReflectionCache.ExpectedItemField?.GetValue(__instance) as ItemValue;
                 if (expectedItem == null || expectedItem.IsEmpty())
                     return;
 
-                int inventoryCount = (int)(currentField?.GetValue(__instance) ?? 0);
-                int maxCount = (int)(maxCountField?.GetValue(__instance) ?? 0);
+                int inventoryCount = (int)(ChallengeReflectionCache.CurrentField?.GetValue(__instance) ?? 0);
+                int maxCount = (int)(ChallengeReflectionCache.MaxCountField?.GetValue(__instance) ?? 0);
                 int containerCount = ContainerManager.GetItemCount(Config, expectedItem);
                 int totalCount = inventoryCount + containerCount;
                 
@@ -2374,9 +2383,9 @@ public class ProxiCraft : IModApi
                 
                 // SET the current field to include container items
                 // Only log when we actually find containers items (reduce spam)
-                if (containerCount > 0 && currentField != null && displayCount != inventoryCount)
+                if (containerCount > 0 && ChallengeReflectionCache.CurrentField != null && displayCount != inventoryCount)
                 {
-                    currentField.SetValue(__instance, displayCount);
+                    ChallengeReflectionCache.CurrentField.SetValue(__instance, displayCount);
                     FileLog($"[CHALLENGE] {expectedItem.ItemClass?.GetItemName()}: inv={inventoryCount} + containers={containerCount} = {displayCount}/{maxCount}");
                 }
             }
@@ -2396,31 +2405,6 @@ public class ProxiCraft : IModApi
     [HarmonyPriority(Priority.Low)]
     private static class ChallengeObjective_StatusText_Patch
     {
-        private static Type gatherType;
-        private static Type trackedItemType;
-        private static FieldInfo expectedItemField;
-        private static FieldInfo currentField;
-        private static FieldInfo maxCountField;
-
-        static ChallengeObjective_StatusText_Patch()
-        {
-            FileLog("StatusText_Patch: Static constructor called");
-            gatherType = AccessTools.TypeByName("Challenges.ChallengeObjectiveGather");
-            trackedItemType = AccessTools.TypeByName("Challenges.ChallengeBaseTrackedItemObjective");
-            var baseObjType = AccessTools.TypeByName("Challenges.BaseChallengeObjective");
-            
-            if (trackedItemType != null)
-            {
-                expectedItemField = AccessTools.Field(trackedItemType, "expectedItem");
-            }
-            if (baseObjType != null)
-            {
-                currentField = AccessTools.Field(baseObjType, "current");
-                maxCountField = AccessTools.Field(baseObjType, "MaxCount");
-            }
-            FileLog($"StatusText_Patch: gatherType={gatherType?.Name}, expectedItemField={expectedItemField?.Name}");
-        }
-
         static MethodBase TargetMethod()
         {
             FileLog("StatusText_Patch: TargetMethod called");
@@ -2439,7 +2423,7 @@ public class ProxiCraft : IModApi
         public static void Postfix(object __instance, ref string __result)
         {
             // Only process gather-type objectives
-            if (gatherType == null || !gatherType.IsInstanceOfType(__instance))
+            if (ChallengeReflectionCache.GatherType == null || !ChallengeReflectionCache.GatherType.IsInstanceOfType(__instance))
                 return;
             
             if (Config?.modEnabled != true || Config?.enableForQuests != true)
@@ -2453,13 +2437,13 @@ public class ProxiCraft : IModApi
 
             try
             {
-                var expectedItem = expectedItemField?.GetValue(__instance) as ItemValue;
+                var expectedItem = ChallengeReflectionCache.ExpectedItemField?.GetValue(__instance) as ItemValue;
                 if (expectedItem == null || expectedItem.IsEmpty())
                     return;
 
                 // 'current' = gathering progress (how many harvested), NOT actual inventory count!
-                int gatherProgress = (int)(currentField?.GetValue(__instance) ?? 0);
-                int maxCount = (int)(maxCountField?.GetValue(__instance) ?? 0);
+                int gatherProgress = (int)(ChallengeReflectionCache.CurrentField?.GetValue(__instance) ?? 0);
+                int maxCount = (int)(ChallengeReflectionCache.MaxCountField?.GetValue(__instance) ?? 0);
                 
                 // Get ACTUAL possession: player inventory + containers
                 // We need to query the player's actual inventory, not use 'current'
@@ -2512,38 +2496,13 @@ public class ProxiCraft : IModApi
     [HarmonyPriority(Priority.Low)]
     private static class ChallengeObjectiveGather_CheckComplete_Patch
     {
-        private static Type gatherType;
-        private static Type trackedItemType;
-        private static FieldInfo expectedItemField;
-        private static FieldInfo currentField;
-        private static FieldInfo maxCountField;
-        private static PropertyInfo completeProperty;
-
-        static ChallengeObjectiveGather_CheckComplete_Patch()
-        {
-            gatherType = AccessTools.TypeByName("Challenges.ChallengeObjectiveGather");
-            trackedItemType = AccessTools.TypeByName("Challenges.ChallengeBaseTrackedItemObjective");
-            var baseObjType = AccessTools.TypeByName("Challenges.BaseChallengeObjective");
-            
-            if (trackedItemType != null)
-            {
-                expectedItemField = AccessTools.Field(trackedItemType, "expectedItem");
-            }
-            if (baseObjType != null)
-            {
-                currentField = AccessTools.Field(baseObjType, "current");
-                maxCountField = AccessTools.Field(baseObjType, "MaxCount");
-                completeProperty = AccessTools.Property(baseObjType, "Complete");
-            }
-        }
-
         static MethodBase TargetMethod()
         {
-            if (gatherType == null)
+            if (ChallengeReflectionCache.GatherType == null)
             {
                 return null;
             }
-            return gatherType.GetMethod("CheckObjectiveComplete", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
+            return ChallengeReflectionCache.GatherType.GetMethod("CheckObjectiveComplete", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public);
         }
 
         public static void Postfix(object __instance, ref bool __result, bool handleComplete)
@@ -2560,11 +2519,11 @@ public class ProxiCraft : IModApi
 
             try
             {
-                var expectedItem = expectedItemField?.GetValue(__instance) as ItemValue;
+                var expectedItem = ChallengeReflectionCache.ExpectedItemField?.GetValue(__instance) as ItemValue;
                 if (expectedItem == null || expectedItem.IsEmpty())
                     return;
 
-                int maxCount = (int)(maxCountField?.GetValue(__instance) ?? 0);
+                int maxCount = (int)(ChallengeReflectionCache.MaxCountField?.GetValue(__instance) ?? 0);
                 
                 // Get ACTUAL possession: player inventory + containers
                 var player = GameManager.Instance?.World?.GetPrimaryPlayer();
@@ -2593,12 +2552,12 @@ public class ProxiCraft : IModApi
                     // CRITICAL: Must set Complete property to trigger green highlighting!
                     // The Complete property setter triggers Owner.HandleComplete() which sets ChallengeState = Completed
                     // Only do this if handleComplete is true (respecting the original intent)
-                    if (handleComplete && completeProperty != null)
+                    if (handleComplete && ChallengeReflectionCache.CompleteProperty != null)
                     {
-                        bool currentComplete = (bool)(completeProperty.GetValue(__instance) ?? false);
+                        bool currentComplete = (bool)(ChallengeReflectionCache.CompleteProperty.GetValue(__instance) ?? false);
                         if (!currentComplete)
                         {
-                            completeProperty.SetValue(__instance, true);
+                            ChallengeReflectionCache.CompleteProperty.SetValue(__instance, true);
                             FileLog($"[CHALLENGE] {expectedItem.ItemClass?.GetItemName()} completed via containers (inv={actualInventory}, containers={containerCount})");
                         }
                     }
