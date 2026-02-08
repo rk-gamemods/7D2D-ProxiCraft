@@ -56,7 +56,7 @@ public class ProxiCraft : IModApi
 {
     // Mod metadata
     public const string MOD_NAME = "ProxiCraft";
-    public const string MOD_VERSION = "1.2.12";
+    public const string MOD_VERSION = "1.2.13";
     
     // Static references
     private static Mod _mod;
@@ -547,7 +547,7 @@ public class ProxiCraft : IModApi
     {
         FileLogInternal(message);
     }
-    
+
     /// <summary>
     /// Debug file logging - only writes to file when debug mode is enabled.
     /// Use for verbose diagnostic output.

@@ -2429,14 +2429,19 @@ public static class ContainerManager
         if (bag == null || bag.IsEmpty())
             return;
 
-        var vehiclePos = new Vector3i(vehicle.position);
+        // FIX: Use entity ID as stable dict key instead of position.
+        // Position-based keys cause duplicate entries when mobile entities move,
+        // because the dict is never cleared (optimization) and old position entries
+        // persist while new ones are added — all pointing to the same storage.
+        // int.MinValue Y coordinate guarantees no collision with real world positions.
+        var vehicleKey = new Vector3i(vehicle.entityId, int.MinValue, 0);
         
         // Wrap in EntityStorage for live position tracking
         var entityStorage = new EntityStorage(vehicle, bag, StorageType.Vehicle);
-        _knownStorageDict[vehiclePos] = entityStorage;
-        _currentStorageDict[vehiclePos] = entityStorage;
+        _knownStorageDict[vehicleKey] = entityStorage;
+        _currentStorageDict[vehicleKey] = entityStorage;
 
-        ProxiCraft.LogDebug($"Adding vehicle {((EntityAlive)vehicle).EntityName} at {vehiclePos}");
+        ProxiCraft.LogDebug($"Adding vehicle {((EntityAlive)vehicle).EntityName} (id={vehicle.entityId})");
     }
 
     /// <summary>
@@ -2459,17 +2464,22 @@ public static class ContainerManager
             return;
 
         // Get drone storage - try lootContainer first, then bag
+        // FIX: Use entity ID as stable dict key instead of position.
+        // Drones follow the player and constantly change position. With position-based keys,
+        // every movement creates a new dict entry pointing to the same lootContainer,
+        // causing items to be counted once per stale entry (double/triple/N-counting).
+        var droneKey = new Vector3i(drone.entityId, int.MinValue, 0);
+
         if (drone.lootContainer != null)
         {
             // lootContainer is ITileEntityLootable, but we need to get items from it
             var lootItems = drone.lootContainer.items;
             if (lootItems != null && lootItems.Any(i => i != null && !i.IsEmpty()))
             {
-                var dronePos = new Vector3i(drone.position);
                 var droneLootStorage = new EntityStorage(drone, drone.lootContainer, StorageType.Drone);
-                _knownStorageDict[dronePos] = droneLootStorage;
-                _currentStorageDict[dronePos] = droneLootStorage;
-                ProxiCraft.LogDebug($"Adding drone lootContainer at {dronePos}");
+                _knownStorageDict[droneKey] = droneLootStorage;
+                _currentStorageDict[droneKey] = droneLootStorage;
+                ProxiCraft.LogDebug($"Adding drone lootContainer (id={drone.entityId})");
                 return;
             }
         }
@@ -2478,11 +2488,10 @@ public static class ContainerManager
         if (droneBag == null || droneBag.IsEmpty())
             return;
 
-        var pos = new Vector3i(drone.position);
         var droneBagStorage = new EntityStorage(drone, droneBag, StorageType.Drone);
-        _knownStorageDict[pos] = droneBagStorage;
-        _currentStorageDict[pos] = droneBagStorage;
-        ProxiCraft.LogDebug($"Adding drone bag at {pos}");
+        _knownStorageDict[droneKey] = droneBagStorage;
+        _currentStorageDict[droneKey] = droneBagStorage;
+        ProxiCraft.LogDebug($"Adding drone bag (id={drone.entityId})");
     }
 
     private static void ScanChunkTileEntities(Chunk chunk, Vector3 playerPos, ModConfig config)

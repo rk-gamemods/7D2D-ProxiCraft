@@ -4,7 +4,7 @@ A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs usin
 
 **[Nexus Mods](https://www.nexusmods.com/7daystodie/mods/9269)** • **[GitHub](https://github.com/rk-gamemods/7D2D-ProxiCraft)**
 
-## ⬇️ [Download ProxiCraft-1.2.12.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.12.zip)
+## ⬇️ [Download ProxiCraft-1.2.13.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.13.zip)
 
 ---
 
@@ -470,6 +470,12 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 ---
 
 ## Changelog
+
+### v1.2.13 - Drone Inventory Double-Count Fix
+
+**Fixed:**
+
+- **Fixed drone inventory being counted multiple times** — Drone items were double/triple-counted in crafting calculations because the storage dictionary keyed by position. Since drones follow the player and constantly change position, each movement created a new dict entry referencing the same lootContainer while stale entries persisted. Craft-max would inflate (e.g., 56 drone items counted as 112+), but actual crafting would fail because the real items only existed once. Fixed by keying mobile entity storage (drones and vehicles) by entity ID instead of position.
 
 ### v1.2.12 - Block Upgrade Bug Fix
 

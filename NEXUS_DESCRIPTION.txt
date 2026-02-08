@@ -373,6 +373,11 @@ Use only ONE mod of this type.
 
 [size=4][b]Changelog[/b][/size]
 
+[b]v1.2.13 - Drone Inventory Double-Count Fix[/b]
+[list]
+[*][b]Fixed drone inventory being counted multiple times[/b] - Drone items were double/triple-counted in crafting calculations because the storage dictionary keyed by position. Since drones follow the player and constantly change position, each movement created a new dict entry referencing the same lootContainer. Craft-max would inflate, but actual crafting would fail. Fixed by keying mobile entity storage by entity ID instead of position.
+[/list]
+
 [b]v1.2.12 - Block Upgrade Bug Fix[/b]
 [list]
 [*][b]Fixed double material consumption during block upgrades[/b] - When upgrade materials were split between player inventory and nearby containers, the game would consume items twice. Now correctly accounts for what vanilla already consumed.
