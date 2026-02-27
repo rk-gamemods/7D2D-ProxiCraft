@@ -202,7 +202,9 @@ Controls which containers are checked first. Lower number = higher priority.
 [b]Crafting & Building[/b]
 [code]
 "enableForCrafting": true,         # Craft recipes with container materials
-"enableForRepairAndUpgrade": true, # Repair/upgrade blocks with container materials
+"enableForRepairAndUpgrade": true, # Master switch: repair + upgrade from containers
+"enableForRepair": true,           # Block repair only (sub-flag)
+"enableForUpgrade": true,          # Block upgrade only (sub-flag)
 "enableForPainting": true,         # Paint blocks using paint from containers
 [/code]
 
@@ -372,6 +374,13 @@ Use only ONE mod of this type.
 [line]
 
 [size=4][b]Changelog[/b][/size]
+
+[b]v1.2.14 - Separate Repair and Upgrade Config Flags[/b]
+[list]
+[*][b]Added enableForRepair config flag[/b] - Controls whether block repair pulls from nearby containers. Set to [b]false[/b] to disable repair-from-storage while keeping upgrade enabled.
+[*][b]Added enableForUpgrade config flag[/b] - Controls whether block upgrade pulls from nearby containers. Set to [b]false[/b] to prevent accidentally consuming materials from storage when upgrading blocks.
+[*]Both new flags are sub-settings of [b]enableForRepairAndUpgrade[/b] (master switch). Old config files without the new keys default to [b]true[/b] — no behavior change for existing users.
+[/list]
 
 [b]v1.2.13 - Drone Inventory Double-Count Fix[/b]
 [list]

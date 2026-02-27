@@ -323,24 +323,45 @@ public static class StartupHealthCheck
     {
         if (!config.enableForRepairAndUpgrade)
         {
-            AddResult("Repair", "Block repair/upgrade", HealthStatus.Disabled, "Disabled in config");
+            AddResult("Repair", "Block repair from containers", HealthStatus.Disabled, "Disabled in config (enableForRepairAndUpgrade)");
+            AddResult("Upgrade", "Block upgrade from containers", HealthStatus.Disabled, "Disabled in config (enableForRepairAndUpgrade)");
             return;
         }
 
-        // Check ItemActionRepair methods for block upgrades
-        var canRemoveMethod = AccessTools.Method(typeof(ItemActionRepair), "CanRemoveRequiredResource");
-        var removeMethod = AccessTools.Method(typeof(ItemActionRepair), "RemoveRequiredResource");
-
-        if (canRemoveMethod != null && removeMethod != null)
+        // Check repair (canRemoveRequiredItem / removeRequiredItem)
+        if (!config.enableForRepair)
         {
-            AddResult("Repair", "Block repair/upgrade", HealthStatus.OK,
-                "ItemActionRepair methods validated");
+            AddResult("Repair", "Block repair from containers", HealthStatus.Disabled, "Disabled in config (enableForRepair)");
         }
         else
         {
-            AddResult("Repair", "Block repair/upgrade", HealthStatus.Degraded,
-                "Some upgrade methods not found",
-                $"CanRemoveRequiredResource: {(canRemoveMethod != null ? "OK" : "MISSING")}, RemoveRequiredResource: {(removeMethod != null ? "OK" : "MISSING")}");
+            var canRemoveItemMethod = AccessTools.Method(typeof(ItemActionRepair), "canRemoveRequiredItem");
+            var removeItemMethod = AccessTools.Method(typeof(ItemActionRepair), "removeRequiredItem");
+
+            if (canRemoveItemMethod != null && removeItemMethod != null)
+                AddResult("Repair", "Block repair from containers", HealthStatus.OK, "ItemActionRepair repair methods validated");
+            else
+                AddResult("Repair", "Block repair from containers", HealthStatus.Degraded,
+                    "Some repair methods not found",
+                    $"canRemoveRequiredItem: {(canRemoveItemMethod != null ? "OK" : "MISSING")}, removeRequiredItem: {(removeItemMethod != null ? "OK" : "MISSING")}");
+        }
+
+        // Check upgrade (CanRemoveRequiredResource / RemoveRequiredResource)
+        if (!config.enableForUpgrade)
+        {
+            AddResult("Upgrade", "Block upgrade from containers", HealthStatus.Disabled, "Disabled in config (enableForUpgrade)");
+        }
+        else
+        {
+            var canRemoveMethod = AccessTools.Method(typeof(ItemActionRepair), "CanRemoveRequiredResource");
+            var removeMethod = AccessTools.Method(typeof(ItemActionRepair), "RemoveRequiredResource");
+
+            if (canRemoveMethod != null && removeMethod != null)
+                AddResult("Upgrade", "Block upgrade from containers", HealthStatus.OK, "ItemActionRepair upgrade methods validated");
+            else
+                AddResult("Upgrade", "Block upgrade from containers", HealthStatus.Degraded,
+                    "Some upgrade methods not found",
+                    $"CanRemoveRequiredResource: {(canRemoveMethod != null ? "OK" : "MISSING")}, RemoveRequiredResource: {(removeMethod != null ? "OK" : "MISSING")}");
         }
     }
 

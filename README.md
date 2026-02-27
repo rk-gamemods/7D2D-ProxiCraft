@@ -4,7 +4,7 @@ A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs usin
 
 **[Nexus Mods](https://www.nexusmods.com/7daystodie/mods/9269)** • **[GitHub](https://github.com/rk-gamemods/7D2D-ProxiCraft)**
 
-## ⬇️ [Download ProxiCraft-1.2.13.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.13.zip)
+## ⬇️ [Download ProxiCraft-1.2.14.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.14.zip)
 
 ---
 
@@ -153,6 +153,8 @@ Edit `config.json` in the mod folder:
   "enableForCrafting": true,
   "enableForQuests": true,
   "enableForRepairAndUpgrade": true,
+  "enableForRepair": true,
+  "enableForUpgrade": true,
   "enableForLockpicking": true,
   "enableForItemRepair": true,
   "enableForPainting": true,
@@ -470,6 +472,17 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 ---
 
 ## Changelog
+
+### v1.2.14 - Separate Repair and Upgrade Config Flags
+
+**Added:**
+
+- **`enableForRepair` config flag** — Controls whether block *repair* pulls from nearby containers.
+  Set to `false` to disable repair-from-storage while keeping upgrade enabled.
+- **`enableForUpgrade` config flag** — Controls whether block *upgrade* pulls from nearby containers.
+  Set to `false` to prevent accidentally consuming materials from storage when upgrading blocks.
+- Both are sub-flags of `enableForRepairAndUpgrade` (master switch). The master switch still disables
+  both when `false`. Old config files without the new keys default to `true` (no change for existing users).
 
 ### v1.2.13 - Drone Inventory Double-Count Fix
 

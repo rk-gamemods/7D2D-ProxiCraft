@@ -1,0 +1,21 @@
+[size=4][b]ProxiCraft v1.2.14[/b][/size]
+
+Adds separate config flags to control block repair and block upgrade from storage independently.
+
+[b]Changes:[/b]
+[list]
+[*][b]Added enableForRepair config flag[/b] - Controls whether block repair pulls from nearby containers. Set to [b]false[/b] to disable repair-from-storage while keeping upgrade enabled.
+[*][b]Added enableForUpgrade config flag[/b] - Controls whether block upgrade pulls from nearby containers. Set to [b]false[/b] to prevent accidentally consuming materials from storage when upgrading blocks.
+[*]Both new flags are sub-settings of [b]enableForRepairAndUpgrade[/b] (master switch). The master switch still disables both when [b]false[/b]. Old config files without the new keys default to [b]true[/b] — no behavior change for existing users.
+[/list]
+
+[b]Installation:[/b]
+[list=1]
+[*]Download ProxiCraft-1.2.14.zip
+[*]Extract the zip into your Mods folder
+[*]Launch game with [b]EAC disabled[/b]
+[/list]
+
+[b]Multiplayer:[/b] All players need the same version installed.
+
+[b]Bug Reports:[/b] Comment on this mod page with pc_debug.log from your ProxiCraft folder.

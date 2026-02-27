@@ -250,7 +250,9 @@ Examples:
         Output("");
         Output("  Features:");
         Output($"    Crafting: {GetFeatureStatus(config?.modEnabled)}");
-        Output($"    Repair/Upgrade: {GetFeatureStatus(config?.enableForRepairAndUpgrade)}");
+        Output($"    Repair/Upgrade (master): {GetFeatureStatus(config?.enableForRepairAndUpgrade)}");
+        Output($"    Repair only: {GetFeatureStatus(config?.enableForRepair)}");
+        Output($"    Upgrade only: {GetFeatureStatus(config?.enableForUpgrade)}");
         Output($"    Trader: {GetFeatureStatus(config?.enableForTrader)}");
         Output($"    Reload: {GetFeatureStatus(config?.enableForReload)}");
         Output($"    Refuel: {GetFeatureStatus(config?.enableForRefuel)}");
@@ -716,6 +718,8 @@ Examples:
         Output($"  enableForGeneratorRefuel = {config.enableForGeneratorRefuel}");
         Output($"  enableForItemRepair = {config.enableForItemRepair}");
         Output($"  enableForRepairAndUpgrade = {config.enableForRepairAndUpgrade}");
+        Output($"  enableForRepair = {config.enableForRepair}");
+        Output($"  enableForUpgrade = {config.enableForUpgrade}");
         Output("");
         Output("[New Features]");
         Output($"  enableHudAmmoCounter = {config.enableHudAmmoCounter}");

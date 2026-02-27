@@ -88,8 +88,16 @@ public class ModConfig
     /// <summary>Allow using currency from containers for trader purchases</summary>
     public bool enableForTrader = true;
 
-    /// <summary>Allow crafting from containers for repair and upgrade operations</summary>
+    /// <summary>Allow crafting from containers for repair and upgrade operations (master switch)</summary>
     public bool enableForRepairAndUpgrade = true;
+
+    /// <summary>Allow pulling from containers for block REPAIR operations.
+    /// Only applies when enableForRepairAndUpgrade is also true.</summary>
+    public bool enableForRepair = true;
+
+    /// <summary>Allow pulling from containers for block UPGRADE operations.
+    /// Only applies when enableForRepairAndUpgrade is also true.</summary>
+    public bool enableForUpgrade = true;
 
     /// <summary>Allow quest objectives to count items in nearby containers</summary>
     public bool enableForQuests = true;

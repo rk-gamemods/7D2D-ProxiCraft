@@ -56,7 +56,7 @@ public class ProxiCraft : IModApi
 {
     // Mod metadata
     public const string MOD_NAME = "ProxiCraft";
-    public const string MOD_VERSION = "1.2.13";
+    public const string MOD_VERSION = "1.2.14";
     
     // Static references
     private static Mod _mod;
@@ -3074,7 +3074,7 @@ public class ProxiCraft : IModApi
         public static void Postfix(ItemActionRepair __instance, ref bool __result, ItemInventoryData data, BlockValue blockValue)
         {
             // If vanilla succeeded or mod disabled, no need to intervene
-            if (__result || Config?.modEnabled != true || Config?.enableForRepairAndUpgrade != true)
+            if (__result || Config?.modEnabled != true || Config?.enableForRepairAndUpgrade != true || Config?.enableForUpgrade != true)
                 return;
 
             // Safety check - don't run if game state isn't ready
@@ -3204,7 +3204,7 @@ public class ProxiCraft : IModApi
         public static void Postfix(ItemActionRepair __instance, ref bool __result, ItemInventoryData data, BlockValue blockValue, (int invCount, int bagCount) __state)
         {
             // If vanilla succeeded or mod disabled, no need to intervene
-            if (__result || Config?.modEnabled != true || Config?.enableForRepairAndUpgrade != true)
+            if (__result || Config?.modEnabled != true || Config?.enableForRepairAndUpgrade != true || Config?.enableForUpgrade != true)
                 return;
 
             // Safety check - don't run if game state isn't ready
@@ -3311,7 +3311,7 @@ public class ProxiCraft : IModApi
         public static void Postfix(ItemActionRepair __instance, ref bool __result, ItemInventoryData _data, ItemStack _itemStack)
         {
             // If vanilla succeeded or mod disabled, no need to intervene
-            if (__result || Config?.modEnabled != true || Config?.enableForRepairAndUpgrade != true)
+            if (__result || Config?.modEnabled != true || Config?.enableForRepairAndUpgrade != true || Config?.enableForRepair != true)
                 return;
 
             // Safety check - don't run if game state isn't ready
@@ -3393,7 +3393,7 @@ public class ProxiCraft : IModApi
         public static void Postfix(ItemActionRepair __instance, ref bool __result, ItemInventoryData _data, ItemStack _itemStack, (int invCount, int bagCount) __state)
         {
             // If vanilla succeeded or mod disabled, no need to intervene
-            if (__result || Config?.modEnabled != true || Config?.enableForRepairAndUpgrade != true)
+            if (__result || Config?.modEnabled != true || Config?.enableForRepairAndUpgrade != true || Config?.enableForRepair != true)
                 return;
 
             // Safety check - don't run if game state isn't ready
