@@ -267,6 +267,7 @@ public static class PerformanceProfiler
     public const string OP_COUNT_DEWCOLLECTORS = "CountDewCollectors";
     public const string OP_COUNT_WORKSTATIONS = "CountWorkstations";
     public const string OP_COUNT_CONTAINERS = "CountContainers";
+    public const string OP_LAND_CLAIM_CHECK = "LandClaimCheck";
     
     // Cleanup operations
     public const string OP_CLEANUP_STALE = "CleanupStale";

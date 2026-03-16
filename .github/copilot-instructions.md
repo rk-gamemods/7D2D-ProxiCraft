@@ -5,11 +5,13 @@
 **ALWAYS use the QueryDb toolkit as your FIRST approach when researching game code, understanding mechanics, or analyzing how features work.**
 
 ### Toolkit Location
+
 ```
 C:\Users\Admin\Documents\GIT\GameMods\7D2DMods\7D2D-DecompilerScript\toolkit\QueryDb\bin\Release\net8.0\QueryDb.exe
 ```
 
 ### Database Path
+
 ```
 C:\Users\Admin\Documents\GIT\GameMods\7D2DMods\7D2D-DecompilerScript\toolkit\callgraph_full.db
 ```
@@ -43,6 +45,7 @@ QueryDb.exe <db_path> search "ProcessPackage"
 ### Why This Matters
 
 The toolkit provides:
+
 - **Full callgraph** of the entire 7D2D codebase
 - **Code context** showing surrounding lines
 - **Quick verification** without reading entire files
@@ -86,8 +89,9 @@ ProxiCraft is a 7 Days to Die mod that allows players to use items from nearby s
 **Framework:** .NET 4.8, C# 12, Harmony 2.x
 
 **Links:**
-- **Nexus Mods:** https://www.nexusmods.com/7daystodie/mods/9269
-- **GitHub:** https://github.com/rk-gamemods/7D2D-ProxiCraft
+
+- **Nexus Mods:** <https://www.nexusmods.com/7daystodie/mods/9269>
+- **GitHub:** <https://github.com/rk-gamemods/7D2D-ProxiCraft>
 
 ---
 
@@ -143,14 +147,17 @@ ProxiCraft is a 7 Days to Die mod that allows players to use items from nearby s
 ## Build & Deploy Workflow
 
 ### Building
+
 ```powershell
 cd C:\Users\Admin\Documents\GIT\GameMods\7D2DMods\ProxiCraft
 dotnet build -c Release
 ```
+
 - Output goes directly to `Release\ProxiCraft\ProxiCraft.dll`
 - The csproj is configured with `<OutputPath>Release\ProxiCraft\</OutputPath>`
 
 ### Force Clean Rebuild
+
 **IMPORTANT:** `dotnet build` uses incremental compilation and may NOT recompile if it thinks nothing changed. To force a full rebuild:
 
 ```powershell
@@ -161,17 +168,21 @@ dotnet build -c Release --no-incremental
 ```
 
 **When to force rebuild:**
+
 - After making changes that don't seem to take effect
 - When DLL timestamp doesn't update after build
 - Before pushing release binaries to ensure fresh compilation
 
 ### Testing In-Game
+
 1. Copy `Release\ProxiCraft\` folder to `C:\Steam\steamapps\common\7 Days To Die\Mods\`
 2. Launch game with EAC disabled
 3. Use console commands (`pc status`, `pc test`, `pc health`) to verify
 
 ### Creating Release Package
+
 The `Release\ProxiCraft\` folder IS the release package. Zip it for distribution:
+
 ```powershell
 Compress-Archive -Path .\Release\ProxiCraft -DestinationPath .\Release\ProxiCraft.zip -Force
 ```
@@ -184,9 +195,11 @@ Compress-Archive -Path .\Release\ProxiCraft -DestinationPath .\Release\ProxiCraf
 
 1. **Download** the mod to `temp_analysis/<ModName>/`
 2. **Decompile** using ILSpyCmd:
+
    ```powershell
    ilspycmd "temp_analysis\ModName\ModName.dll" -p -o "temp_analysis\ModName_src" -lv Latest
    ```
+
 3. **Analyze** the source to understand:
    - What methods they patch (for conflict detection)
    - How they implement features (for inspiration)
@@ -199,18 +212,21 @@ Use the [7D2D-DecompilerScript](https://github.com/rk-gamemods/7D2D-DecompilerSc
 The `7D2DCodebase` folder is its own git repository - each decompile becomes a commit, allowing you to diff between game versions.
 
 **First time or after game update:**
+
 ```powershell
 cd C:\Users\Admin\Documents\GIT\GameMods\7D2DMods
 .\DecompileGameCode.ps1
 ```
 
 The script will:
+
 1. Detect game version automatically
 2. Decompile assemblies
 3. Commit with game version as message
 4. Show diff summary of what changed (if previous version exists)
 
 **Comparing game versions:**
+
 ```powershell
 cd 7D2DCodebase
 git log --oneline                           # See version history
@@ -221,6 +237,7 @@ git diff HEAD~1 -- XUiM_PlayerInventory.cs  # Specific file diff
 Output: `7D2DCodebase/Assembly-CSharp/` with ~4000+ .cs files
 
 **When to regenerate:**
+
 - After game updates (method signatures may change)
 - When implementing new features that touch unfamiliar game systems
 - When debugging unexpected behavior
@@ -228,11 +245,13 @@ Output: `7D2DCodebase/Assembly-CSharp/` with ~4000+ .cs files
 ### After Game Updates
 
 1. **Regenerate decompiled code:**
+
    ```powershell
    .\DecompileGameCode.ps1 -Force
    ```
 
 2. **Run startup health check in-game:**
+
    ```
    pc health
    pc fullcheck
@@ -315,17 +334,20 @@ The challenge tracker was the hardest feature to implement. Key lessons:
 ## Performance Optimization Lessons
 
 ### What Works
+
 - **Squared distance checks** - avoid `Math.Sqrt()` in hot paths
 - **Direct dictionary iteration** - avoid `dict.Keys.ToArray()` allocations
 - **For loops over foreach** - avoid enumerator allocations
 - **Cache hit rates** - aim for >95% cache hit rate
 
 ### Real-World Performance (AMD Ryzen 9800X3D reference)
+
 - Cold cache: ~2.4ms for full scan
 - Warm cache: ~0.16ms average
 - Cache hit rate: ~98.7%
 
 ### When Performance Matters
+
 - `GetItemCount` is called frequently during crafting UI
 - `RefreshStorages` runs when player opens crafting
 - Recipe list building iterates all recipes
@@ -343,6 +365,7 @@ The challenge tracker was the hardest feature to implement. Key lessons:
 | `INTEGRATION_PLAN.md` | Feature planning and design |
 
 When updating features:
+
 1. Update `README.md` with user-facing changes
 2. Update `NEXUS_DESCRIPTION.txt` changelog section
 3. Update `TECHNICAL_REFERENCE.md` for technical details
@@ -353,6 +376,7 @@ When updating features:
 **ProxiCraft has a standardized release process documented in [RELEASE_PROCESS.md](../RELEASE_PROCESS.md).**
 
 This comprehensive checklist covers:
+
 - Version numbering (semantic versioning)
 - All 6 files requiring version updates
 - README.md download link update (critical!)
@@ -369,10 +393,12 @@ This comprehensive checklist covers:
 ## Git Workflow
 
 ### Branch Strategy
+
 - `master` - stable releases
 - `feature/*` - feature development branches
 
 ### Typical Flow
+
 ```powershell
 git checkout -b feature/new-feature
 # ... develop and test ...
@@ -382,9 +408,11 @@ git checkout master; git merge feature/new-feature; git push
 ```
 
 ### Pushing Binary Files (DLL, ZIP)
+
 **CRITICAL:** GitHub CDN has caching delays. Binary files may appear stale for 1-2 minutes after push.
 
 **If binaries don't update on GitHub:**
+
 1. Delete the files from git, commit, and push
 2. Force clean rebuild (see above)
 3. Re-add the files, commit, and push
@@ -406,6 +434,7 @@ git push
 ```
 
 **To verify binaries on GitHub are correct:**
+
 ```powershell
 # Download and check DLL timestamp inside zip
 Invoke-WebRequest -Uri "https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/BRANCH/Release/ProxiCraft.zip" -OutFile "test.zip"
@@ -544,6 +573,7 @@ ProxiCraft patches `XUiM_PlayerInventory.GetItemCount()` to include items from n
 | ProxiCraft on both | Both aware of items | ✓ Works correctly |
 
 **The Multiplayer Safety Lock exists because:**
+
 1. Client with ProxiCraft "sees" items in unopened containers
 2. Server without ProxiCraft never granted `TELockServer` access
 3. When client tries to sync modifications → **undefined behavior** → CTD
@@ -574,24 +604,28 @@ QueryDb.exe callgraph_full.db search "NetPackageTileEntity"
 ## Lessons Learned
 
 ### Things That Break Easily
+
 1. **Transpilers** - IL injection is fragile, use postfix when possible
 2. **Field access by name** - fields get renamed, search by type instead
 3. **Specific method signatures** - use `AdaptiveMethodFinder` for resilience
 4. **UI window lookups** - `xui.WindowGroups` only has MENU windows, not in-game UI
 
 ### Things That Cause Bugs
+
 1. **Firing backpack events during transfers** → item duplication
 2. **Reading `TileEntity.items` while UI open** → stale data
 3. **Not null-checking everything** → random crashes
 4. **Counting workstation input slots** → double-counting materials
 
 ### Debugging Tips
+
 1. Use `pc fullcheck` for comprehensive diagnostics
 2. Check `output_log.txt` in `%APPDATA%\7DaysToDie\logs\` for errors
 3. Enable `isDebug: true` in config.json for verbose logging
 4. Use `pc perf on` to profile performance issues
 
 ### Game Code Quirks
+
 - `xui.lootContainer` is only set when looting window is open
 - `lockedTileEntities` dictionary tracks who has containers open
 - `EntityDrone.lootContainer.items` and `drone.bag.GetSlots()` are the SAME array

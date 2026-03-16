@@ -432,6 +432,9 @@ public class ProxiCraft : IModApi
                 Log($"Range changed from {oldRange} to {Config.range} - cache cleared, scan method will be recalculated");
             }
 
+            // Reset land claim cache so new flag values take effect immediately
+            LandClaimHelper.ResetCache();
+
             Log("Configuration reloaded successfully");
 
             if (Config.modEnabled != wasEnabled)
@@ -876,6 +879,7 @@ public class ProxiCraft : IModApi
                 MultiplayerModTracker.Clear();
 
                 ContainerManager.ClearCache();
+                LandClaimHelper.ResetCache();
                 LogDebug("Container cache and multiplayer state cleared for new game");
             }
             catch (Exception ex)

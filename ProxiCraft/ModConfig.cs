@@ -174,6 +174,39 @@ public class ModConfig
     /// </summary>
     public bool enhancedSafetyDiagnosticLogging = false;
 
+    // ===========================================
+    // LAND CLAIM RESTRICTIONS - Optional per-source prefilter
+    // ===========================================
+    // When enabled for a storage source, that source is ONLY searched when:
+    //   1. The player is inside a land claim they own or have ACL access to, AND
+    //   2. The container is also inside such a claim.
+    // If the player is NOT in any claim, claim-restricted sources are skipped
+    // entirely — this REDUCES search overhead vs. normal operation when exploring.
+    // All flags default to false (no behavior change from previous versions).
+    //
+    // NOTE: Trader compounds are normally outside player claims. Setting
+    // landClaimContainer = true will prevent using container currency at traders.
+    // Leave sources you use at traders set to false.
+    // ===========================================
+
+    /// <summary>Label only — no functional effect.</summary>
+    public string landClaimSection_NOTE = "All false by default. Feature off = zero overhead.";
+
+    /// <summary>Restrict vehicle storage to land claim areas only.</summary>
+    public bool landClaimVehicle = false;
+
+    /// <summary>Restrict drone storage to land claim areas only.</summary>
+    public bool landClaimDrone = false;
+
+    /// <summary>Restrict dew collector contents to land claim areas only.</summary>
+    public bool landClaimDewCollector = false;
+
+    /// <summary>Restrict workstation output slots to land claim areas only.</summary>
+    public bool landClaimWorkstation = false;
+
+    /// <summary>Restrict regular containers (chests, etc.) to land claim areas only.</summary>
+    public bool landClaimContainer = false;
+
     // ===========================================    // MULTIPLAYER SAFETY - Crash prevention
     // ===========================================
 

@@ -617,6 +617,40 @@ public static class ContainerManager
     }
 
     /// <summary>
+    /// Returns true if the container at containerPos passes the land claim restriction
+    /// for its storage type. When the source's land claim flag is false (default),
+    /// returns true immediately with zero cost.
+    ///
+    /// The CALLER is responsible for the source-level prefilter (checking
+    /// IsPlayerInAnyClaim before entering the scan loop). This method handles the
+    /// per-container check only, so it can be called inside an iteration safely.
+    ///
+    /// Returns true (permissive) when game state is unavailable.
+    /// </summary>
+    private static bool PassesLandClaimCheck(ModConfig config, StorageType storageType,
+                                              Vector3i containerBlockPos, Vector3i playerBlockPos,
+                                              List<Vector3i> accessibleClaims, int claimRadius)
+    {
+        bool requiresClaim = storageType switch
+        {
+            StorageType.Vehicle      => config.landClaimVehicle,
+            StorageType.Drone        => config.landClaimDrone,
+            StorageType.DewCollector => config.landClaimDewCollector,
+            StorageType.Workstation  => config.landClaimWorkstation,
+            StorageType.Container    => config.landClaimContainer,
+            _                        => false
+        };
+
+        if (!requiresClaim) return true;
+
+        PerformanceProfiler.StartTimer(PerformanceProfiler.OP_LAND_CLAIM_CHECK);
+        bool result = LandClaimHelper.IsContainerInSameClaim(playerBlockPos, containerBlockPos,
+                                                              accessibleClaims, claimRadius);
+        PerformanceProfiler.StopTimer(PerformanceProfiler.OP_LAND_CLAIM_CHECK);
+        return result;
+    }
+
+    /// <summary>
     /// Pre-warms the container cache by scanning for nearby storage.
     /// Called on player spawn to eliminate first-access lag.
     /// </summary>
@@ -659,6 +693,19 @@ public static class ContainerManager
         try
         {
             RefreshStorages(config);
+
+            // Land claim prefilter: resolve once, passed down to per-container check below.
+            // When no land claim flags are set (default), all claim variables stay null/zero — zero overhead.
+            bool anyClaimRestriction = config.landClaimVehicle || config.landClaimDrone ||
+                                        config.landClaimDewCollector || config.landClaimWorkstation ||
+                                        config.landClaimContainer;
+            var localPPD         = anyClaimRestriction ? LandClaimHelper.GetLocalPPD() : null;
+            var accessibleClaims = anyClaimRestriction ? LandClaimHelper.GetAccessibleClaimBlocks(localPPD) : null;
+            int claimRadius      = anyClaimRestriction ? LandClaimHelper.GetClaimRadius() : 0;
+            var claimPlayer      = anyClaimRestriction ? GameManager.Instance?.World?.GetPrimaryPlayer() : null;
+            var playerBlockPos   = claimPlayer != null ? new Vector3i(claimPlayer.position) : default;
+            bool playerInAnyClaim = anyClaimRestriction &&
+                                     LandClaimHelper.IsPlayerInAnyClaim(playerBlockPos, accessibleClaims, claimRadius);
 
             // THREAD SAFETY (v1.2.8): Take snapshot before iteration to avoid concurrent modification
             // ConcurrentDictionary's enumerator is safe but may see inconsistent state during iteration
@@ -704,6 +751,27 @@ public static class ContainerManager
                     // Centralized range check
                     if (!IsInRange(config, containerPos))
                         continue;
+
+                    // Land claim check — fast-paths to true when feature disabled (default)
+                    // Source-level: if claim-restricted source and player not in claim, skip it.
+                    // Per-container: verify this specific container is in the player's claim.
+                    var storageType = GetStorageType(kvp.Value);
+                    bool sourceClaimRestricted = storageType switch
+                    {
+                        StorageType.Vehicle      => config.landClaimVehicle,
+                        StorageType.Drone        => config.landClaimDrone,
+                        StorageType.DewCollector => config.landClaimDewCollector,
+                        StorageType.Workstation  => config.landClaimWorkstation,
+                        StorageType.Container    => config.landClaimContainer,
+                        _                        => false
+                    };
+                    if (sourceClaimRestricted)
+                    {
+                        if (!playerInAnyClaim) continue;
+                        if (!PassesLandClaimCheck(config, storageType, new Vector3i(containerPos),
+                                                   playerBlockPos, accessibleClaims, claimRadius))
+                            continue;
+                    }
 
                     // Handle EntityStorage (vehicles/drones with live position tracking)
                     if (kvp.Value is EntityStorage es)
@@ -1038,10 +1106,22 @@ public static class ContainerManager
 
             Vector3 playerPos = player.position;
             float rangeSquared = config.range > 0f ? config.range * config.range : -1f;
-            
+
+            // Land claim prefilter: compute once per cache rebuild.
+            // All false by default → anyClaimRestriction=false → zero land claim overhead.
+            bool anyClaimRestriction = config.landClaimVehicle || config.landClaimDrone ||
+                                        config.landClaimDewCollector || config.landClaimWorkstation ||
+                                        config.landClaimContainer;
+            var localPPD         = anyClaimRestriction ? LandClaimHelper.GetLocalPPD() : null;
+            var accessibleClaims = anyClaimRestriction ? LandClaimHelper.GetAccessibleClaimBlocks(localPPD) : null;
+            int claimRadius      = anyClaimRestriction ? LandClaimHelper.GetClaimRadius() : 0;
+            var playerBlockPos   = anyClaimRestriction ? new Vector3i(playerPos) : default;
+            bool playerInAnyClaim = anyClaimRestriction &&
+                                     LandClaimHelper.IsPlayerInAnyClaim(playerBlockPos, accessibleClaims, claimRadius);
+
             // Track open container position to avoid double-counting
             Vector3i openContainerPos = CurrentOpenContainerPos;
-            
+
             // FIRST: Count from open container via cached reference (live data)
             if (CurrentOpenContainer?.items != null)
             {
@@ -1072,7 +1152,10 @@ public static class ContainerManager
 
             // SECOND: Count from open vehicle via cached reference (live data)
             // When vehicle storage is open, its bag has the live data
-            if (CurrentOpenVehicle != null)
+            if (CurrentOpenVehicle != null &&
+                (!config.landClaimVehicle ||
+                 (playerInAnyClaim && LandClaimHelper.IsContainerInSameClaim(
+                      playerBlockPos, new Vector3i(CurrentOpenVehicle.position), accessibleClaims, claimRadius))))
             {
                 var vehicleBag = ((EntityAlive)CurrentOpenVehicle).bag;
                 if (vehicleBag != null)
@@ -1099,7 +1182,11 @@ public static class ContainerManager
             
             // THIRD: Count from open workstation's OUTPUT only (live data)
             // When a workstation is open, count from its Output property
-            if (CurrentOpenWorkstation != null)
+            var wsOpenPos = CurrentOpenWorkstation?.ToWorldPos() ?? Vector3i.zero;
+            if (CurrentOpenWorkstation != null &&
+                (!config.landClaimWorkstation ||
+                 (playerInAnyClaim && LandClaimHelper.IsContainerInSameClaim(
+                      playerBlockPos, wsOpenPos, accessibleClaims, claimRadius))))
             {
                 var output = CurrentOpenWorkstation.Output;
                 if (output != null)
@@ -1114,8 +1201,10 @@ public static class ContainerManager
             }
             
             // Scan closed containers from TileEntities
+            // Prefilter: if containers are claim-restricted and player not in any claim, skip entirely.
+            bool shouldScanContainers = !config.landClaimContainer || playerInAnyClaim;
             PerformanceProfiler.StartTimer(PerformanceProfiler.OP_COUNT_CONTAINERS);
-            int clusterCount = world.ChunkClusters.Count;
+            int clusterCount = shouldScanContainers ? world.ChunkClusters.Count : 0;
             for (int clusterIdx = 0; clusterIdx < clusterCount; clusterIdx++)
             {
                 var cluster = world.ChunkClusters[clusterIdx];
@@ -1162,6 +1251,12 @@ public static class ContainerManager
                             if (IsContainerLocked(worldPos))
                                 continue;
 
+                            // Land claim check for regular containers
+                            if (config.landClaimContainer &&
+                                !PassesLandClaimCheck(config, StorageType.Container,
+                                    worldPos, playerBlockPos, accessibleClaims, claimRadius))
+                                continue;
+
                             CountTileEntityItems(tileEntity, config);
                         }
                     }
@@ -1177,31 +1272,31 @@ public static class ContainerManager
             // COUNT FROM ADDITIONAL STORAGE SOURCES
             // ================================================================
 
-            // Count from vehicles (method has internal profiler timing)
-            if (config.pullFromVehicles)
+            // Count from vehicles — prefilter: skip entirely if claim-restricted and player not in claim
+            if (config.pullFromVehicles && (!config.landClaimVehicle || playerInAnyClaim))
             {
-                CountAllVehicleItems(world, playerPos, config);
+                CountAllVehicleItems(world, playerPos, config, playerBlockPos, accessibleClaims, claimRadius);
             }
 
-            // Count from drones (method has internal profiler timing)
-            if (config.pullFromDrones)
+            // Count from drones — prefilter: skip entirely if claim-restricted and player not in claim
+            if (config.pullFromDrones && (!config.landClaimDrone || playerInAnyClaim))
             {
-                CountAllDroneItems(world, playerPos, config);
+                CountAllDroneItems(world, playerPos, config, playerBlockPos, accessibleClaims, claimRadius);
             }
 
-            // Count from dew collectors (TileEntityCollector)
-            if (config.pullFromDewCollectors)
+            // Count from dew collectors — prefilter: skip entirely if claim-restricted and player not in claim
+            if (config.pullFromDewCollectors && (!config.landClaimDewCollector || playerInAnyClaim))
             {
                 PerformanceProfiler.StartTimer(PerformanceProfiler.OP_COUNT_DEWCOLLECTORS);
-                CountAllDewCollectorItems(world, playerPos, config, openContainerPos);
+                CountAllDewCollectorItems(world, playerPos, config, openContainerPos, playerBlockPos, accessibleClaims, claimRadius);
                 PerformanceProfiler.StopTimer(PerformanceProfiler.OP_COUNT_DEWCOLLECTORS);
             }
 
-            // Count from workstation outputs (TileEntityWorkstation)
-            if (config.pullFromWorkstationOutputs)
+            // Count from workstation outputs — prefilter: skip entirely if claim-restricted and player not in claim
+            if (config.pullFromWorkstationOutputs && (!config.landClaimWorkstation || playerInAnyClaim))
             {
                 PerformanceProfiler.StartTimer(PerformanceProfiler.OP_COUNT_WORKSTATIONS);
-                CountAllWorkstationOutputItems(world, playerPos, config, openContainerPos);
+                CountAllWorkstationOutputItems(world, playerPos, config, openContainerPos, playerBlockPos, accessibleClaims, claimRadius);
                 PerformanceProfiler.StopTimer(PerformanceProfiler.OP_COUNT_WORKSTATIONS);
             }
             
@@ -1283,7 +1378,8 @@ public static class ContainerManager
     /// Skips the currently open vehicle to avoid stale data issues.
     /// Respects locked slots when config.respectLockedSlots is true.
     /// </summary>
-    private static void CountAllVehicleItems(World world, Vector3 playerPos, ModConfig config)
+    private static void CountAllVehicleItems(World world, Vector3 playerPos, ModConfig config,
+                                              Vector3i playerBlockPos, List<Vector3i> accessibleClaims, int claimRadius)
     {
         PerformanceProfiler.StartTimer(PerformanceProfiler.OP_COUNT_VEHICLES);
         try
@@ -1315,6 +1411,12 @@ public static class ContainerManager
                             continue;
                     }
                     if (!vehicle.LocalPlayerIsOwner())
+                        continue;
+
+                    // Land claim check — same claim as player required
+                    if (config.landClaimVehicle &&
+                        !LandClaimHelper.IsContainerInSameClaim(playerBlockPos, new Vector3i(vehicle.position),
+                                                                  accessibleClaims, claimRadius))
                         continue;
                     if (!vehicle.hasStorage())
                         continue;
@@ -1357,7 +1459,8 @@ public static class ContainerManager
     /// We only count from lootContainer to avoid double-counting.
     /// Respects locked slots when config.respectLockedSlots is true.
     /// </summary>
-    private static void CountAllDroneItems(World world, Vector3 playerPos, ModConfig config)
+    private static void CountAllDroneItems(World world, Vector3 playerPos, ModConfig config,
+                                            Vector3i playerBlockPos, List<Vector3i> accessibleClaims, int claimRadius)
     {
         PerformanceProfiler.StartTimer(PerformanceProfiler.OP_COUNT_DRONES);
         try
@@ -1391,6 +1494,12 @@ public static class ContainerManager
 
                     // Only include drones owned by the local player
                     if (!drone.LocalPlayerIsOwner())
+                        continue;
+
+                    // Land claim check — same claim as player required
+                    if (config.landClaimDrone &&
+                        !LandClaimHelper.IsContainerInSameClaim(playerBlockPos, new Vector3i(drone.position),
+                                                                  accessibleClaims, claimRadius))
                         continue;
 
                     // Count from lootContainer ONLY (not bag - they share the same items array!)
@@ -1430,7 +1539,8 @@ public static class ContainerManager
     /// <summary>
     /// Counts all items in dew collectors and adds to cache.
     /// </summary>
-    private static void CountAllDewCollectorItems(World world, Vector3 playerPos, ModConfig config, Vector3i openContainerPos)
+    private static void CountAllDewCollectorItems(World world, Vector3 playerPos, ModConfig config, Vector3i openContainerPos,
+                                                   Vector3i playerBlockPos, List<Vector3i> accessibleClaims, int claimRadius)
     {
         float rangeSquared = config.range > 0f ? config.range * config.range : -1f;
         
@@ -1475,6 +1585,12 @@ public static class ContainerManager
                                 continue;
                         }
 
+                        // Land claim check — same claim as player required
+                        if (config.landClaimDewCollector &&
+                            !LandClaimHelper.IsContainerInSameClaim(playerBlockPos, worldPos,
+                                                                      accessibleClaims, claimRadius))
+                            continue;
+
                         var items = collector.items;
                         if (items != null)
                         {
@@ -1500,7 +1616,8 @@ public static class ContainerManager
     /// Only counts from OUTPUT slots, NOT input/fuel/tool slots.
     /// Skips the currently open workstation (already counted via CurrentOpenWorkstation).
     /// </summary>
-    private static void CountAllWorkstationOutputItems(World world, Vector3 playerPos, ModConfig config, Vector3i openContainerPos)
+    private static void CountAllWorkstationOutputItems(World world, Vector3 playerPos, ModConfig config, Vector3i openContainerPos,
+                                                        Vector3i playerBlockPos, List<Vector3i> accessibleClaims, int claimRadius)
     {
         float rangeSquared = config.range > 0f ? config.range * config.range : -1f;
         
@@ -1548,6 +1665,12 @@ public static class ContainerManager
                             if (dx * dx + dy * dy + dz * dz >= rangeSquared)
                                 continue;
                         }
+
+                        // Land claim check — same claim as player required
+                        if (config.landClaimWorkstation &&
+                            !LandClaimHelper.IsContainerInSameClaim(playerBlockPos, worldPos,
+                                                                      accessibleClaims, claimRadius))
+                            continue;
 
                         var output = workstation.Output;
                         if (output != null)
@@ -1597,7 +1720,20 @@ public static class ContainerManager
         try
         {
             RefreshStorages(config);
-            
+
+            // Land claim prefilter: compute once for the entire removal pass.
+            // When NO land claim flags are set (default), this is a no-op (anyClaimRestriction=false).
+            bool anyClaimRestriction = config.landClaimVehicle || config.landClaimDrone ||
+                                        config.landClaimDewCollector || config.landClaimWorkstation ||
+                                        config.landClaimContainer;
+            var localPPD         = anyClaimRestriction ? LandClaimHelper.GetLocalPPD() : null;
+            var accessibleClaims = anyClaimRestriction ? LandClaimHelper.GetAccessibleClaimBlocks(localPPD) : null;
+            int claimRadius      = anyClaimRestriction ? LandClaimHelper.GetClaimRadius() : 0;
+            var removeClaimPlayer = anyClaimRestriction ? GameManager.Instance?.World?.GetPrimaryPlayer() : null;
+            var playerBlockPos   = removeClaimPlayer != null ? new Vector3i(removeClaimPlayer.position) : default;
+            bool playerInAnyClaim = anyClaimRestriction &&
+                                     LandClaimHelper.IsPlayerInAnyClaim(playerBlockPos, accessibleClaims, claimRadius);
+
             // ====================================================================================
             // When a workstation is open, we need to remove from its live Output reference
             // before iterating the storage dict. This ensures the UI sees the removal immediately.
@@ -1611,7 +1747,10 @@ public static class ContainerManager
             {
                 // Check range to the open workstation
                 var workstationPos = CurrentOpenWorkstation.ToWorldPos();
-                if (IsInRange(config, workstationPos))
+                if (IsInRange(config, workstationPos) &&
+                    (!config.landClaimWorkstation ||
+                     (playerInAnyClaim && LandClaimHelper.IsContainerInSameClaim(
+                         playerBlockPos, workstationPos, accessibleClaims, claimRadius))))
                 {
                     // Use the new UI-based removal
                     int uiRemoved = RemoveFromWorkstationOutputUI(item, remaining, out handledOpenWorkstation);
@@ -1654,6 +1793,27 @@ public static class ContainerManager
                     // Centralized range check
                     if (!IsInRange(config, containerPos))
                         continue;
+
+                    // Land claim check — fast-paths when anyClaimRestriction is false (default).
+                    // Source prefilter (player not in any claim) and per-container check combined.
+                    if (anyClaimRestriction)
+                    {
+                        var st = GetStorageType(kvp.Value);
+                        bool sourceRestricted = st switch
+                        {
+                            StorageType.Vehicle      => config.landClaimVehicle,
+                            StorageType.Drone        => config.landClaimDrone,
+                            StorageType.DewCollector => config.landClaimDewCollector,
+                            StorageType.Workstation  => config.landClaimWorkstation,
+                            StorageType.Container    => config.landClaimContainer,
+                            _                        => false
+                        };
+                        if (sourceRestricted &&
+                            (!playerInAnyClaim ||
+                             !LandClaimHelper.IsContainerInSameClaim(playerBlockPos, new Vector3i(containerPos),
+                                                                       accessibleClaims, claimRadius)))
+                            continue;
+                    }
 
                     // Handle EntityStorage (vehicles/drones with live position tracking)
                     // NOTE: Entity could despawn during iteration. We use try-catch as safety net.

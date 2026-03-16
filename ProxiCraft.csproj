@@ -43,6 +43,7 @@
     <Compile Include="ProxiCraft\NetworkDiagnostics.cs" />
     <Compile Include="ProxiCraft\VirtualInventoryProvider.cs" />
     <Compile Include="ProxiCraft\FlightRecorder.cs" />
+    <Compile Include="ProxiCraft\LandClaimHelper.cs" />
   </ItemGroup>
 
   <ItemGroup>
