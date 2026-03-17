@@ -4,7 +4,7 @@ A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs usin
 
 **[Nexus Mods](https://www.nexusmods.com/7daystodie/mods/9269)** • **[GitHub](https://github.com/rk-gamemods/7D2D-ProxiCraft)**
 
-## ⬇️ [Download ProxiCraft-1.2.14.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.14.zip)
+## ⬇️ [Download ProxiCraft-1.2.15-landclaim.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/feature/land-claim-zone-detection/Release/ProxiCraft-1.2.15-landclaim.zip)
 
 ---
 
@@ -472,6 +472,21 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 ---
 
 ## Changelog
+
+### v1.2.15-landclaim - Land Claim Zone Detection (Experimental)
+
+**Added:**
+
+- **Per-source land claim restriction** — Optional feature to restrict container scanning to land claim zones.
+  When enabled, only containers inside a land claim the player owns or has access to (via ACL/ally) are used.
+- **5 per-source config flags** — `landClaimVehicle`, `landClaimDrone`, `landClaimDewCollector`,
+  `landClaimWorkstation`, `landClaimContainer`. All `false` by default (feature off = zero overhead).
+- **LandClaimHelper** — Dedicated helper wrapping the game's `World.GetLandClaimOwner()` API with
+  250ms player position caching and 5s claim block list caching for minimal performance impact.
+- **Prefilter pattern** — When enabled, acts as a prefilter: if the player is not in any claim,
+  claim-restricted sources are skipped entirely, reducing search space vs. normal operation.
+
+**Note:** This feature branch is preserved for reference but is not supported on the main release line.
 
 ### v1.2.14 - Separate Repair and Upgrade Config Flags
 

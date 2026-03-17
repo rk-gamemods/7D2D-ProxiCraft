@@ -1,0 +1,22 @@
+[size=4][b]ProxiCraft v1.2.15-landclaim[/b][/size]
+
+Optional feature to restrict ProxiCraft's container scanning to land claim zones. When enabled per-source, only containers inside a player-accessible claim are used. Off by default — zero overhead when disabled. This feature branch is preserved for reference but is not supported on the main release line.
+
+[b]Changes:[/b]
+[list]
+[*][b]Per-source land claim restriction[/b] - New optional prefilter that limits container access to land claim areas the player owns or has ally access to (via ACL).
+[*][b]5 new config flags[/b] - [b]landClaimVehicle[/b], [b]landClaimDrone[/b], [b]landClaimDewCollector[/b], [b]landClaimWorkstation[/b], [b]landClaimContainer[/b]. All [b]false[/b] by default.
+[*][b]LandClaimHelper[/b] - Dedicated helper wrapping the game's built-in land claim API with 250ms player position caching and 5s claim block list caching.
+[*][b]Prefilter optimization[/b] - When enabled, if the player is not in any claim, all claim-restricted source scans are skipped entirely, reducing search space.
+[/list]
+
+[b]Installation:[/b]
+[list=1]
+[*]Download ProxiCraft-1.2.15-landclaim.zip
+[*]Extract the zip into your Mods folder
+[*]Launch game with [b]EAC disabled[/b]
+[/list]
+
+[b]Multiplayer:[/b] All players need the same version installed.
+
+[b]Bug Reports:[/b] Comment on this mod page with pc_debug.log from your ProxiCraft folder.

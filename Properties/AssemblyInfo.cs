@@ -4,6 +4,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Versioning;
 
 [assembly: AssemblyConfiguration("Debug")]
-[assembly: AssemblyFileVersion("1.2.14.0")]
-[assembly: AssemblyInformationalVersion("1.2.14")]
-[assembly: AssemblyVersion("1.2.14.0")]
+[assembly: AssemblyFileVersion("1.2.15.0")]
+[assembly: AssemblyInformationalVersion("1.2.15-landclaim")]
+[assembly: AssemblyVersion("1.2.15.0")]
