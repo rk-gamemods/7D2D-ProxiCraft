@@ -375,6 +375,12 @@ Use only ONE mod of this type.
 
 [size=4][b]Changelog[/b][/size]
 
+[b]v1.3.0 - Game Version 2.6 Compatibility[/b]
+[list]
+[*][b]Updated dew collector item access for game build 22422060[/b] - The game renamed [b]TileEntityCollector.items[/b] to [b]Items[/b] (uppercase). ProxiCraft now uses a version-tolerant accessor with multiple fallback strategies, so it works across both old and new game builds.
+[*][b]Fixed dew collector UI not refreshing[/b] - When ProxiCraft removed items from a dew collector, the new XUiC_DewCollectorContainer UI window wouldn't update until closed and reopened. Now calls NotifyListeners() before SetModified() to match the game's own notification pattern.
+[/list]
+
 [b]v1.2.14 - Separate Repair and Upgrade Config Flags[/b]
 [list]
 [*][b]Added enableForRepair config flag[/b] - Controls whether block repair pulls from nearby containers. Set to [b]false[/b] to disable repair-from-storage while keeping upgrade enabled.

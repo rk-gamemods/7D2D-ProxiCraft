@@ -69,7 +69,7 @@ public class EntityStorage
 /// - Legacy secure loot containers (TileEntitySecureLootContainer)
 /// - Vehicle storage (EntityVehicle.bag)
 /// - Drone storage (EntityDrone.bag or lootContainer)
-/// - Dew collectors (TileEntityCollector.items)
+/// - Dew collectors (TileEntityCollector item storage)
 /// - Workstation outputs (TileEntityWorkstation.output)
 ///
 /// CONTAINER COUNTING STRATEGY:
@@ -94,6 +94,8 @@ public class EntityStorage
 /// </summary>
 public static class ContainerManager
 {
+    private static readonly Func<TileEntityCollector, ItemStack[]> DewCollectorItemsAccessor = CreateDewCollectorItemsAccessor();
+
     // THREAD-SAFE caches for storage references (CRASH PREVENTION Issue #3)
     // ConcurrentDictionary prevents "collection modified during enumeration" crashes
     // that can occur when network events modify caches while UI code iterates them
@@ -223,6 +225,44 @@ public static class ContainerManager
     {
         _forceCacheRefresh = true;
         _itemCountCacheValid = false;
+    }
+
+    /// <summary>
+    /// Resolves the dew collector item-storage API once at startup.
+    /// Build 22422060 uses the public Items property, while older builds exposed lower-case members.
+    /// </summary>
+    private static Func<TileEntityCollector, ItemStack[]> CreateDewCollectorItemsAccessor()
+    {
+        var propertyGetter = AccessTools.PropertyGetter(typeof(TileEntityCollector), "Items")
+            ?? AccessTools.PropertyGetter(typeof(TileEntityCollector), "items");
+
+        if (propertyGetter != null)
+            return AccessTools.MethodDelegate<Func<TileEntityCollector, ItemStack[]>>(propertyGetter);
+
+        var field = AccessTools.Field(typeof(TileEntityCollector), "itemsInternal")
+            ?? AccessTools.Field(typeof(TileEntityCollector), "itemsArr")
+            ?? AccessTools.Field(typeof(TileEntityCollector), "items");
+
+        if (field != null)
+            return collector => (ItemStack[])field.GetValue(collector);
+
+        return _ => null;
+    }
+
+    private static ItemStack[] GetDewCollectorItems(TileEntityCollector collector)
+    {
+        if (collector == null)
+            return null;
+
+        try
+        {
+            return DewCollectorItemsAccessor(collector);
+        }
+        catch (Exception ex)
+        {
+            ProxiCraft.LogDebug($"Error reading dew collector items: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>
@@ -1475,7 +1515,7 @@ public static class ContainerManager
                                 continue;
                         }
 
-                        var items = collector.items;
+                        var items = GetDewCollectorItems(collector);
                         if (items != null)
                         {
                             for (int i = 0; i < items.Length; i++)
@@ -1961,6 +2001,9 @@ public static class ContainerManager
             }
             else
             {
+                // Notify UI listeners so open container windows (e.g. XUiC_DewCollectorContainer)
+                // reflect changes immediately. Matches the game's own pattern: NotifyListeners() then setModified().
+                TileEntity.NotifyListeners();
                 TileEntity.SetModified();
             }
         }
@@ -2569,7 +2612,7 @@ public static class ContainerManager
         if (dewCollector.bUserAccessing)
             return;
 
-        var items = dewCollector.items;
+        var items = GetDewCollectorItems(dewCollector);
         if (items == null || !items.Any(i => i != null && !i.IsEmpty()))
             return;
 

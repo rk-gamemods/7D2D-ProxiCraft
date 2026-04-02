@@ -4,7 +4,7 @@ A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs usin
 
 **[Nexus Mods](https://www.nexusmods.com/7daystodie/mods/9269)** • **[GitHub](https://github.com/rk-gamemods/7D2D-ProxiCraft)**
 
-## ⬇️ [Download ProxiCraft-1.2.14.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.2.14.zip)
+## ⬇️ [Download ProxiCraft-1.3.0.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.3.0.zip)
 
 ---
 
@@ -472,6 +472,17 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 ---
 
 ## Changelog
+
+### v1.3.0 - Game Version 2.6 Compatibility
+
+**Fixed:**
+
+- **Updated dew collector item access for game build 22422060** — The game renamed `TileEntityCollector.items` to `Items`
+  (uppercase). ProxiCraft now uses a version-tolerant accessor with multiple fallback strategies, so it works
+  across both old and new game builds without breaking.
+- **Fixed dew collector UI not refreshing** — When ProxiCraft removed items from a dew collector, the new
+  `XUiC_DewCollectorContainer` UI window wouldn't update until closed and reopened. Now calls
+  `NotifyListeners()` before `SetModified()` to match the game's own notification pattern.
 
 ### v1.2.14 - Separate Repair and Upgrade Config Flags
 
