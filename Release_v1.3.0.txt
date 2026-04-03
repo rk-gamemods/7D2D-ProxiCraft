@@ -2,6 +2,8 @@
 
 Game Version 2.6 (build 22422060) compatibility update.
 
+[color=#ff9900][b]⚠ Note:[/b][/color] This release has not been fully play-tested yet. It should be backwards compatible with game version 2.5, but if you run into issues, [b]v1.2.14 remains available[/b] as a safe fallback. Please report any problems so they can be fixed quickly.
+
 [b]Changes:[/b]
 [list]
 [*][b]Updated dew collector item access[/b] - The game renamed TileEntityCollector.items to Items (uppercase). ProxiCraft now uses a version-tolerant accessor with multiple fallback strategies, so it works across both old and new game builds.

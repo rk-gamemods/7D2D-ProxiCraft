@@ -375,7 +375,16 @@ Use only ONE mod of this type.
 
 [size=4][b]Changelog[/b][/size]
 
+[b]v1.3.1 - Multiplayer Stability & Thread Safety[/b]
+[list]
+[*][b]Fixed InvalidOperationException in multiplayer[/b] - When a remote player reconnected, the game's network thread could add/remove entities or load/unload chunks while ProxiCraft was iterating those collections during cache rebuild. All entity list, chunk dictionary, and locked container iterations now use defensive snapshots to prevent concurrent modification crashes.
+[*][b]Fixed race condition on open container references[/b] - CurrentOpenContainer, CurrentOpenVehicle, CurrentOpenWorkstation, and CurrentOpenDrone could be set to null by the UI thread between a null-check and subsequent use, causing NullReferenceException during cache rebuild. References are now captured to local variables.
+[*][b]Fixed operator precedence bug in VirtualInventoryProvider[/b] - Incorrect evaluation when Config was null caused the mod to attempt storage access instead of falling back to inventory-only mode.
+[*][b]Added volatile to cache invalidation flags[/b] - Prevents compiler from serving stale cached values when InvalidateCache() is called from a different context than the cache reader.
+[/list]
+
 [b]v1.3.0 - Game Version 2.6 Compatibility[/b]
+[color=#ff9900][b]⚠ Not fully play-tested yet.[/b][/color] Should be backwards compatible with game 2.5, but v1.2.14 remains available if you run into issues.
 [list]
 [*][b]Updated dew collector item access for game build 22422060[/b] - The game renamed [b]TileEntityCollector.items[/b] to [b]Items[/b] (uppercase). ProxiCraft now uses a version-tolerant accessor with multiple fallback strategies, so it works across both old and new game builds.
 [*][b]Fixed dew collector UI not refreshing[/b] - When ProxiCraft removed items from a dew collector, the new XUiC_DewCollectorContainer UI window wouldn't update until closed and reopened. Now calls NotifyListeners() before SetModified() to match the game's own notification pattern.

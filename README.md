@@ -4,7 +4,7 @@ A 7 Days to Die mod that allows crafting, reloading, refueling, and repairs usin
 
 **[Nexus Mods](https://www.nexusmods.com/7daystodie/mods/9269)** • **[GitHub](https://github.com/rk-gamemods/7D2D-ProxiCraft)**
 
-## ⬇️ [Download ProxiCraft-1.3.0.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.3.0.zip)
+## ⬇️ [Download ProxiCraft-1.3.1.zip](https://github.com/rk-gamemods/7D2D-ProxiCraft/raw/master/Release/ProxiCraft-1.3.1.zip)
 
 ---
 
@@ -473,7 +473,29 @@ If you prefer their versions, check them out! ProxiCraft is a from-scratch imple
 
 ## Changelog
 
+### v1.3.1 - Multiplayer Stability & Thread Safety
+
+**Fixed:**
+
+- **Fixed `InvalidOperationException: Collection was modified` in multiplayer** — When a remote player
+  reconnected, the game's network thread could add/remove entities or load/unload chunks while ProxiCraft
+  was iterating those collections during cache rebuild. All entity list, chunk dictionary, and locked
+  container iterations now use defensive snapshots to prevent concurrent modification crashes.
+- **Fixed race condition on open container references** — `CurrentOpenContainer`, `CurrentOpenVehicle`,
+  `CurrentOpenWorkstation`, and `CurrentOpenDrone` could be set to null by the UI thread between a
+  null-check and subsequent use, causing `NullReferenceException` during cache rebuild. References are
+  now captured to local variables before access.
+- **Fixed operator precedence bug in VirtualInventoryProvider** — `!Config?.modEnabled == true`
+  evaluated incorrectly when Config was null, causing the mod to attempt storage access instead of
+  gracefully falling back to inventory-only mode.
+- **Added `volatile` to cache invalidation flags** — `_itemCountCacheValid`, `_forceCacheRefresh`, and
+  `_storageRefreshNeeded` are written outside the lock by `InvalidateCache()` but read under the lock;
+  without `volatile` the compiler could serve stale cached values.
+
 ### v1.3.0 - Game Version 2.6 Compatibility
+
+> **Note:** Not fully play-tested yet. Should be backwards compatible with game 2.5, but v1.2.14 remains
+> available as a safe fallback if you run into issues.
 
 **Fixed:**
 

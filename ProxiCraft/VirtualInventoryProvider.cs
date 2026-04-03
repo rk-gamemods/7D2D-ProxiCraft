@@ -57,7 +57,7 @@ public static class VirtualInventoryProvider
         int inventoryCount = bagCount + toolbeltCount;
 
         // SAFETY: Skip storage if mod disabled or multiplayer locked
-        if (!ProxiCraft.Config?.modEnabled == true)
+        if (ProxiCraft.Config?.modEnabled != true)
             return inventoryCount;
 
         if (!MultiplayerModTracker.IsModAllowed())
@@ -143,7 +143,7 @@ public static class VirtualInventoryProvider
         // SAFETY: Skip if mod disabled or multiplayer locked
         if (remaining > 0)
         {
-            if (!ProxiCraft.Config?.modEnabled == true)
+            if (ProxiCraft.Config?.modEnabled != true)
             {
                 LogDiagnostic($"ConsumeItems: Mod disabled, skipping storage");
                 return totalRemoved;

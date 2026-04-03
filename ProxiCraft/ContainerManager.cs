@@ -137,11 +137,11 @@ public static class ContainerManager
     private static int _peakLockCount;    // High water mark for lock dictionary size
 
     // Flag to force cache refresh (set when containers change)
-    private static bool _forceCacheRefresh = true;
-    
+    private static volatile bool _forceCacheRefresh = true;
+
     // Flag to force storage refresh after crash prevention catches an error
     // This clears stale references that may have caused the error
-    private static bool _storageRefreshNeeded = false;
+    private static volatile bool _storageRefreshNeeded = false;
     
     // ====================================================================================
     // ITEM COUNT CACHE - PERFORMANCE OPTIMIZATION
@@ -177,7 +177,7 @@ public static class ContainerManager
     private static readonly object _itemCountLock = new object(); // Dedicated lock for cache thread safety
     private static float _lastItemCountTime;
     private const float ITEM_COUNT_CACHE_DURATION = 0.1f; // Cache counts for 100ms (reduced from 250ms for responsiveness)
-    private static bool _itemCountCacheValid = false;
+    private static volatile bool _itemCountCacheValid = false;
     private static int _lastItemCountFrame = -1; // Track frame number for per-frame caching
     
     // ====================================================================================
@@ -890,7 +890,13 @@ public static class ContainerManager
             var lockedTileEntities = GameManager.Instance?.lockedTileEntities;
             if (lockedTileEntities != null)
             {
-                foreach (var kvp in lockedTileEntities)
+                // Snapshot to avoid InvalidOperationException when network thread
+                // modifies locked container set during iteration
+                List<KeyValuePair<ITileEntity, int>> lockSnapshot;
+                try { lockSnapshot = lockedTileEntities.ToList(); }
+                catch (InvalidOperationException) { return 0; }
+
+                foreach (var kvp in lockSnapshot)
                 {
                     if (kvp.Value == player.entityId && kvp.Key is TileEntity te)
                     {
@@ -1083,17 +1089,19 @@ public static class ContainerManager
             Vector3i openContainerPos = CurrentOpenContainerPos;
             
             // FIRST: Count from open container via cached reference (live data)
-            if (CurrentOpenContainer?.items != null)
+            // Capture to local to prevent null between check and use (UI thread can clear these)
+            var openContainer = CurrentOpenContainer;
+            if (openContainer?.items != null)
             {
-                var items = CurrentOpenContainer.items;
+                var items = openContainer.items;
 
                 // Get locked slots for open container (depends on concrete type)
                 PackedBoolArray openContainerLockedSlots = null;
                 if (config.respectLockedSlots)
                 {
-                    if (CurrentOpenContainer is TEFeatureStorage storage)
+                    if (openContainer is TEFeatureStorage storage)
                         openContainerLockedSlots = storage.SlotLocks;
-                    else if (CurrentOpenContainer is TileEntitySecureLootContainer secureLoot)
+                    else if (openContainer is TileEntitySecureLootContainer secureLoot)
                         openContainerLockedSlots = secureLoot.SlotLocks;
                 }
 
@@ -1112,9 +1120,10 @@ public static class ContainerManager
 
             // SECOND: Count from open vehicle via cached reference (live data)
             // When vehicle storage is open, its bag has the live data
-            if (CurrentOpenVehicle != null)
+            var openVehicle = CurrentOpenVehicle;
+            if (openVehicle != null)
             {
-                var vehicleBag = ((EntityAlive)CurrentOpenVehicle).bag;
+                var vehicleBag = ((EntityAlive)openVehicle).bag;
                 if (vehicleBag != null)
                 {
                     var slots = vehicleBag.GetSlots();
@@ -1139,9 +1148,10 @@ public static class ContainerManager
             
             // THIRD: Count from open workstation's OUTPUT only (live data)
             // When a workstation is open, count from its Output property
-            if (CurrentOpenWorkstation != null)
+            var openWorkstation = CurrentOpenWorkstation;
+            if (openWorkstation != null)
             {
-                var output = CurrentOpenWorkstation.Output;
+                var output = openWorkstation.Output;
                 if (output != null)
                 {
                     for (int i = 0; i < output.Length; i++)
@@ -1164,10 +1174,15 @@ public static class ContainerManager
                 var chunkDict = ((WorldChunkCache)cluster).chunks?.dict;
                 if (chunkDict == null) continue;
 
-                // Iterate directly over dictionary to avoid ToArray() allocation
-                foreach (var chunkKvp in chunkDict)
+                // Snapshot chunk values to avoid InvalidOperationException when
+                // network thread loads/unloads chunks during MP
+                Chunk[] chunkSnapshot;
+                try { chunkSnapshot = chunkDict.Values.ToArray(); }
+                catch (InvalidOperationException) { continue; } // dict modified during copy
+
+                for (int ci = 0; ci < chunkSnapshot.Length; ci++)
                 {
-                    var chunk = chunkKvp.Value;
+                    var chunk = chunkSnapshot[ci];
                     if (chunk == null) continue;
 
                     chunk.EnterReadLock();
@@ -1176,18 +1191,22 @@ public static class ContainerManager
                         var tileEntityDict = chunk.tileEntities?.dict;
                         if (tileEntityDict == null) continue;
 
-                        // Iterate directly to avoid ToArray() allocation
-                        foreach (var teKvp in tileEntityDict)
+                        // Snapshot tile entities under read lock to avoid concurrent modification
+                        TileEntity[] teSnapshot;
+                        try { teSnapshot = tileEntityDict.Values.ToArray(); }
+                        catch (InvalidOperationException) { continue; }
+
+                        for (int ti = 0; ti < teSnapshot.Length; ti++)
                         {
-                            var tileEntity = teKvp.Value;
+                            var tileEntity = teSnapshot[ti];
                             if (tileEntity == null) continue;
 
                             var worldPos = tileEntity.ToWorldPos();
-                            
+
                             // Skip the open container - we already counted it
                             if (openContainerPos != Vector3i.zero && worldPos == openContainerPos)
                                 continue;
-                            
+
                             // Range check using squared distance (avoids sqrt)
                             if (rangeSquared > 0f)
                             {
@@ -1331,11 +1350,17 @@ public static class ContainerManager
             var entities = world.Entities?.list;
             if (entities == null) return;
 
+            // Snapshot to avoid InvalidOperationException when network thread
+            // adds/removes entities during MP player reconnect
+            Entity[] entitySnapshot;
+            try { entitySnapshot = entities.ToArray(); }
+            catch (ArgumentException) { return; } // list resized during copy — skip this cycle
+
             float rangeSquared = config.range > 0f ? config.range * config.range : 0f;
 
-            for (int i = 0; i < entities.Count; i++)
+            for (int i = 0; i < entitySnapshot.Length; i++)
             {
-                var entity = entities[i];
+                var entity = entitySnapshot[i];
                 if (entity == null || !(entity is EntityVehicle vehicle))
                     continue;
 
@@ -1343,7 +1368,8 @@ public static class ContainerManager
                 {
                     // Skip the currently open vehicle - its data may be changing
                     // When vehicle storage is open, we count from the live UI data instead
-                    if (CurrentOpenVehicle != null && vehicle.entityId == CurrentOpenVehicle.entityId)
+                    var skipVehicle = CurrentOpenVehicle;
+                    if (skipVehicle != null && vehicle.entityId == skipVehicle.entityId)
                         continue;
 
                     if (rangeSquared > 0f)
@@ -1405,11 +1431,17 @@ public static class ContainerManager
             var entities = world.Entities?.list;
             if (entities == null) return;
 
+            // Snapshot to avoid InvalidOperationException when network thread
+            // adds/removes entities during MP player reconnect
+            Entity[] entitySnapshot;
+            try { entitySnapshot = entities.ToArray(); }
+            catch (ArgumentException) { return; } // list resized during copy — skip this cycle
+
             float rangeSquared = config.range > 0f ? config.range * config.range : 0f;
 
-            for (int i = 0; i < entities.Count; i++)
+            for (int i = 0; i < entitySnapshot.Length; i++)
             {
-                var entity = entities[i];
+                var entity = entitySnapshot[i];
                 if (entity == null || !(entity is EntityDrone drone))
                     continue;
 
@@ -1417,7 +1449,8 @@ public static class ContainerManager
                 {
                     // Skip the currently open drone - it's counted via CurrentOpenContainer
                     // (drone storage opens via XUiC_LootContainer which sets CurrentOpenContainer)
-                    if (CurrentOpenDrone != null && drone.entityId == CurrentOpenDrone.entityId)
+                    var skipDrone = CurrentOpenDrone;
+                    if (skipDrone != null && drone.entityId == skipDrone.entityId)
                         continue;
 
                     if (rangeSquared > 0f)
@@ -1483,10 +1516,15 @@ public static class ContainerManager
             var chunkDict = ((WorldChunkCache)cluster).chunks?.dict;
             if (chunkDict == null) continue;
 
-            // Iterate directly to avoid ToArray() allocation
-            foreach (var chunkKvp in chunkDict)
+            // Snapshot chunk values to avoid InvalidOperationException when
+            // network thread loads/unloads chunks during MP
+            Chunk[] chunkSnapshot;
+            try { chunkSnapshot = chunkDict.Values.ToArray(); }
+            catch (InvalidOperationException) { continue; }
+
+            for (int ci = 0; ci < chunkSnapshot.Length; ci++)
             {
-                var chunk = chunkKvp.Value;
+                var chunk = chunkSnapshot[ci];
                 if (chunk == null) continue;
 
                 chunk.EnterReadLock();
@@ -1495,16 +1533,21 @@ public static class ContainerManager
                     var tileEntityDict = chunk.tileEntities?.dict;
                     if (tileEntityDict == null) continue;
 
-                    foreach (var teKvp in tileEntityDict)
+                    // Snapshot tile entities under read lock
+                    TileEntity[] teSnapshot;
+                    try { teSnapshot = tileEntityDict.Values.ToArray(); }
+                    catch (InvalidOperationException) { continue; }
+
+                    for (int ti = 0; ti < teSnapshot.Length; ti++)
                     {
-                        var tileEntity = teKvp.Value;
+                        var tileEntity = teSnapshot[ti];
                         if (tileEntity == null || !(tileEntity is TileEntityCollector collector))
                             continue;
 
                         var worldPos = tileEntity.ToWorldPos();
                         if (openContainerPos != Vector3i.zero && worldPos == openContainerPos)
                             continue;
-                        
+
                         // Range check using squared distance
                         if (rangeSquared > 0f)
                         {
@@ -1553,10 +1596,15 @@ public static class ContainerManager
             var chunkDict = ((WorldChunkCache)cluster).chunks?.dict;
             if (chunkDict == null) continue;
 
-            // Iterate directly to avoid ToArray() allocation
-            foreach (var chunkKvp in chunkDict)
+            // Snapshot chunk values to avoid InvalidOperationException when
+            // network thread loads/unloads chunks during MP
+            Chunk[] chunkSnapshot;
+            try { chunkSnapshot = chunkDict.Values.ToArray(); }
+            catch (InvalidOperationException) { continue; }
+
+            for (int ci = 0; ci < chunkSnapshot.Length; ci++)
             {
-                var chunk = chunkKvp.Value;
+                var chunk = chunkSnapshot[ci];
                 if (chunk == null) continue;
 
                 chunk.EnterReadLock();
@@ -1565,20 +1613,26 @@ public static class ContainerManager
                     var tileEntityDict = chunk.tileEntities?.dict;
                     if (tileEntityDict == null) continue;
 
-                    foreach (var teKvp in tileEntityDict)
+                    // Snapshot tile entities under read lock
+                    TileEntity[] teSnapshot;
+                    try { teSnapshot = tileEntityDict.Values.ToArray(); }
+                    catch (InvalidOperationException) { continue; }
+
+                    for (int ti = 0; ti < teSnapshot.Length; ti++)
                     {
-                        var tileEntity = teKvp.Value;
+                        var tileEntity = teSnapshot[ti];
                         if (tileEntity == null || !(tileEntity is TileEntityWorkstation workstation))
                             continue;
 
                         // Skip the currently open workstation - already counted via CurrentOpenWorkstation
-                        if (CurrentOpenWorkstation != null && workstation == CurrentOpenWorkstation)
+                        var skipWorkstation = CurrentOpenWorkstation;
+                        if (skipWorkstation != null && workstation == skipWorkstation)
                             continue;
 
                         var worldPos = tileEntity.ToWorldPos();
                         if (openContainerPos != Vector3i.zero && worldPos == openContainerPos)
                             continue;
-                        
+
                         // Range check using squared distance
                         if (rangeSquared > 0f)
                         {
@@ -2430,9 +2484,15 @@ public static class ContainerManager
         var entities = world.Entities?.list;
         if (entities == null) return;
 
-        for (int i = 0; i < entities.Count; i++)
+        // Snapshot to avoid InvalidOperationException when network thread
+        // adds/removes entities during MP player reconnect
+        Entity[] entitySnapshot;
+        try { entitySnapshot = entities.ToArray(); }
+        catch (ArgumentException) { return; } // list resized during copy — skip this cycle
+
+        for (int i = 0; i < entitySnapshot.Length; i++)
         {
-            var entity = entities[i];
+            var entity = entitySnapshot[i];
             if (entity == null) continue;
 
             try
@@ -2738,12 +2798,18 @@ public static class ContainerManager
             if (localPlayer == null)
                 return false;
 
-            foreach (var kvp in lockedTileEntities)
+            // Snapshot to avoid InvalidOperationException when network thread
+            // modifies locked container set during iteration
+            List<KeyValuePair<ITileEntity, int>> lockSnapshot;
+            try { lockSnapshot = lockedTileEntities.ToList(); }
+            catch (InvalidOperationException) { return false; }
+
+            foreach (var kvp in lockSnapshot)
             {
                 if (kvp.Value == localPlayer.entityId)
                     return true;
             }
-            
+
             return false;
         }
         catch
