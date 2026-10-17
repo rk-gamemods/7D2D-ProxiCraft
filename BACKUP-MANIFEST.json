@@ -1,0 +1,33 @@
+{
+  "format": "project-recovery-parts-v1",
+  "sourcePlan": {
+    "slug": "7d2d-proxicraft",
+    "repo": "rk-gamemods/7D2D-ProxiCraft",
+    "allowCreate": false,
+    "sources": [
+      {
+        "root": "C:\\Users\\Admin\\Documents\\GIT\\GameMods\\7D2DMods\\ProxiCraft"
+      }
+    ]
+  },
+  "parts": [
+    {
+      "name": "recovery.tar.gz.part0001",
+      "bytes": 14600021,
+      "sha256": "598ac5aa925fd520f52631d27e57e550b271577e6f670cc5abe5427d44461754"
+    }
+  ],
+  "archiveSha256": "598ac5aa925fd520f52631d27e57e550b271577e6f670cc5abe5427d44461754",
+  "archiveBytes": 14600021,
+  "selectedFiles": 87,
+  "selectedLogicalBytes": 3481472,
+  "gitRepositories": 1,
+  "excluded": [
+    {
+      "source": 0,
+      "path": ".git",
+      "reason": "rebuildable/test-generated"
+    }
+  ],
+  "retained": []
+}
